@@ -1,0 +1,21 @@
+{
+  "name": "geopolitik-x-autopost",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "tsx src/run_once.ts",
+    "scheduler": "tsx src/scheduler.ts"
+  },
+  "dependencies": {
+    "dotenv": "^16.4.5",
+    "rss-parser": "^3.13.0",
+    "better-sqlite3": "^9.4.3",
+    "oauth-1.0a": "^2.2.6"
+  },
+  "devDependencies": {
+    "tsx": "^4.19.2",
+    "typescript": "^5.6.3"
+  }
+}
+
