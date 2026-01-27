@@ -307,6 +307,626 @@ export const NEWS_SOURCES: NewsSource[] = [
     region: "latam",
     priority: 1,
     reliability: "high"
+  },
+
+  // ========== EXPANSIÓN MASIVA: 70+ NUEVAS FUENTES ==========
+  
+  // LATAM - ARGENTINA
+  {
+    id: "clarin-argentina",
+    name: "Clarín Argentina",
+    url: "https://www.clarin.com/rss/lo-ultimo/",
+    region: "latam",
+    priority: 1,
+    reliability: "high"
+  },
+  {
+    id: "pagina12-argentina",
+    name: "Página 12 Argentina",
+    url: "https://www.pagina12.com.ar/rss/portada",
+    region: "latam",
+    priority: 1,
+    reliability: "medium"
+  },
+  {
+    id: "perfil-argentina",
+    name: "Perfil Argentina",
+    url: "https://www.perfil.com/feed/",
+    region: "latam",
+    priority: 1,
+    reliability: "high"
+  },
+
+  // LATAM - BRASIL
+  {
+    id: "folha-brasil",
+    name: "Folha de S.Paulo",
+    url: "https://www1.folha.uol.com.br/rss/mundo.xml",
+    region: "latam",
+    priority: 1,
+    reliability: "high"
+  },
+  {
+    id: "globo-brasil",
+    name: "O Globo Brasil",
+    url: "https://oglobo.globo.com/rss.xml",
+    region: "latam",
+    priority: 1,
+    reliability: "high"
+  },
+  {
+    id: "uol-brasil",
+    name: "UOL Notícias Brasil",
+    url: "https://rss.uol.com.br/feed/noticias.xml",
+    region: "latam",
+    priority: 1,
+    reliability: "high"
+  },
+
+  // LATAM - CHILE
+  {
+    id: "emol-chile",
+    name: "Emol Chile",
+    url: "https://www.emol.com/rss/rss.asp",
+    region: "latam",
+    priority: 1,
+    reliability: "high"
+  },
+  {
+    id: "latercera-chile",
+    name: "La Tercera Chile",
+    url: "https://www.latercera.com/feed/",
+    region: "latam",
+    priority: 1,
+    reliability: "high"
+  },
+  {
+    id: "elmostrador-chile",
+    name: "El Mostrador Chile",
+    url: "https://www.elmostrador.cl/noticias/feed/",
+    region: "latam",
+    priority: 1,
+    reliability: "medium"
+  },
+
+  // LATAM - COLOMBIA
+  {
+    id: "eltiempo-colombia",
+    name: "El Tiempo Colombia",
+    url: "https://www.eltiempo.com/rss/politica.xml",
+    region: "latam",
+    priority: 1,
+    reliability: "high"
+  },
+  {
+    id: "elespectador-colombia",
+    name: "El Espectador Colombia",
+    url: "https://www.elespectador.com/rss/politica",
+    region: "latam",
+    priority: 1,
+    reliability: "high"
+  },
+  {
+    id: "semana-colombia",
+    name: "Semana Colombia",
+    url: "https://www.semana.com/feed/",
+    region: "latam",
+    priority: 1,
+    reliability: "high"
+  },
+
+  // LATAM - MÉXICO
+  {
+    id: "proceso-mexico",
+    name: "Proceso México",
+    url: "https://www.proceso.com.mx/feed",
+    region: "latam",
+    priority: 1,
+    reliability: "high"
+  },
+  {
+    id: "reforma-mexico",
+    name: "Reforma México",
+    url: "https://www.reforma.com/rss/portada.xml",
+    region: "latam",
+    priority: 1,
+    reliability: "high"
+  },
+  {
+    id: "excelsior-mexico",
+    name: "Excélsior México",
+    url: "https://www.excelsior.com.mx/rss.xml",
+    region: "latam",
+    priority: 1,
+    reliability: "high"
+  },
+  {
+    id: "jornada-mexico",
+    name: "La Jornada México",
+    url: "https://www.jornada.com.mx/rss/edicion.xml",
+    region: "latam",
+    priority: 1,
+    reliability: "medium"
+  },
+  {
+    id: "milenio-mexico",
+    name: "Milenio México",
+    url: "https://www.milenio.com/rss",
+    region: "latam",
+    priority: 1,
+    reliability: "high"
+  },
+
+  // LATAM - PERÚ
+  {
+    id: "elcomercio-peru",
+    name: "El Comercio Perú",
+    url: "https://elcomercio.pe/rss/",
+    region: "latam",
+    priority: 1,
+    reliability: "high"
+  },
+  {
+    id: "rpp-peru",
+    name: "RPP Noticias Perú",
+    url: "https://rpp.pe/feed",
+    region: "latam",
+    priority: 1,
+    reliability: "high"
+  },
+  {
+    id: "larepublica-peru",
+    name: "La República Perú",
+    url: "https://larepublica.pe/rss/",
+    region: "latam",
+    priority: 1,
+    reliability: "medium"
+  },
+
+  // LATAM - VENEZUELA
+  {
+    id: "efectococuyo-venezuela",
+    name: "Efecto Cocuyo Venezuela",
+    url: "https://efectococuyo.com/feed/",
+    region: "latam",
+    priority: 1,
+    reliability: "high"
+  },
+  {
+    id: "elpitazo-venezuela",
+    name: "El Pitazo Venezuela",
+    url: "https://elpitazo.net/feed/",
+    region: "latam",
+    priority: 1,
+    reliability: "high"
+  },
+  {
+    id: "runrun-venezuela",
+    name: "Runrunes Venezuela",
+    url: "https://runrun.es/feed/",
+    region: "latam",
+    priority: 1,
+    reliability: "medium"
+  },
+
+  // LATAM - ECUADOR
+  {
+    id: "eluniverso-ecuador",
+    name: "El Universo Ecuador",
+    url: "https://www.eluniverso.com/rss/",
+    region: "latam",
+    priority: 1,
+    reliability: "high"
+  },
+  {
+    id: "elcomercio-ecuador",
+    name: "El Comercio Ecuador",
+    url: "https://www.elcomercio.com/rss/",
+    region: "latam",
+    priority: 1,
+    reliability: "high"
+  },
+
+  // LATAM - URUGUAY
+  {
+    id: "elpais-uruguay",
+    name: "El País Uruguay",
+    url: "https://www.elpais.com.uy/rss",
+    region: "latam",
+    priority: 1,
+    reliability: "high"
+  },
+  {
+    id: "elobservador-uruguay",
+    name: "El Observador Uruguay",
+    url: "https://www.elobservador.com.uy/rss/",
+    region: "latam",
+    priority: 1,
+    reliability: "high"
+  },
+
+  // LATAM - BOLIVIA
+  {
+    id: "paginasiete-bolivia",
+    name: "Página Siete Bolivia",
+    url: "https://www.paginasiete.bo/rss.xml",
+    region: "latam",
+    priority: 1,
+    reliability: "high"
+  },
+  {
+    id: "eldeber-bolivia",
+    name: "El Deber Bolivia",
+    url: "https://eldeber.com.bo/rss",
+    region: "latam",
+    priority: 1,
+    reliability: "high"
+  },
+
+  // LATAM - CENTROAMÉRICA
+  {
+    id: "laprensagrafica-elsalvador",
+    name: "La Prensa Gráfica El Salvador",
+    url: "https://www.laprensagrafica.com/rss",
+    region: "latam",
+    priority: 1,
+    reliability: "high"
+  },
+  {
+    id: "elheraldo-honduras",
+    name: "El Heraldo Honduras",
+    url: "https://www.elheraldo.hn/rss",
+    region: "latam",
+    priority: 1,
+    reliability: "high"
+  },
+  {
+    id: "laprensa-nicaragua",
+    name: "La Prensa Nicaragua",
+    url: "https://www.laprensa.com.ni/feed/",
+    region: "latam",
+    priority: 1,
+    reliability: "medium"
+  },
+  {
+    id: "nacion-costarica",
+    name: "La Nación Costa Rica",
+    url: "https://www.nacion.com/rss/",
+    region: "latam",
+    priority: 1,
+    reliability: "high"
+  },
+  {
+    id: "prensalibre-guatemala",
+    name: "Prensa Libre Guatemala",
+    url: "https://www.prensalibre.com/feed/",
+    region: "latam",
+    priority: 1,
+    reliability: "high"
+  },
+
+  // LATAM - CARIBE
+  {
+    id: "jamaicaobserver",
+    name: "Jamaica Observer",
+    url: "http://www.jamaicaobserver.com/rss/news",
+    region: "latam",
+    priority: 1,
+    reliability: "high"
+  },
+  {
+    id: "dominicantoday",
+    name: "Dominican Today",
+    url: "https://dominicantoday.com/dr/feed/",
+    region: "latam",
+    priority: 1,
+    reliability: "high"
+  },
+  {
+    id: "caribbean360",
+    name: "Caribbean360",
+    url: "https://www.caribbean360.com/feed/",
+    region: "latam",
+    priority: 1,
+    reliability: "medium"
+  },
+
+  // GLOBAL - EUROPA
+  {
+    id: "euronews-world",
+    name: "Euronews World",
+    url: "https://www.euronews.com/rss",
+    region: "global",
+    priority: 2,
+    reliability: "high"
+  },
+  {
+    id: "france24-english",
+    name: "France 24 English",
+    url: "https://www.france24.com/en/rss",
+    region: "global",
+    priority: 2,
+    reliability: "high"
+  },
+  {
+    id: "rfi-english",
+    name: "RFI English",
+    url: "https://www.rfi.fr/en/rss",
+    region: "global",
+    priority: 2,
+    reliability: "high"
+  },
+  {
+    id: "dw-world",
+    name: "DW World News",
+    url: "https://rss.dw.com/rdf/rss-en-world",
+    region: "global",
+    priority: 2,
+    reliability: "high"
+  },
+  {
+    id: "lemonde-france",
+    name: "Le Monde International",
+    url: "https://www.lemonde.fr/international/rss_full.xml",
+    region: "global",
+    priority: 2,
+    reliability: "high"
+  },
+  {
+    id: "elpais-espana",
+    name: "El País España Internacional",
+    url: "https://feeds.elpais.com/mrss-s/pages/ep/site/elpais.com/section/internacional/portada",
+    region: "global",
+    priority: 2,
+    reliability: "high"
+  },
+  {
+    id: "independent-uk",
+    name: "The Independent UK",
+    url: "https://www.independent.co.uk/news/world/rss",
+    region: "global",
+    priority: 2,
+    reliability: "high"
+  },
+  {
+    id: "telegraph-world",
+    name: "The Telegraph World",
+    url: "https://www.telegraph.co.uk/news/world/rss",
+    region: "global",
+    priority: 2,
+    reliability: "high"
+  },
+
+  // GLOBAL - ASIA
+  {
+    id: "japantimes",
+    name: "Japan Times",
+    url: "https://www.japantimes.co.jp/feed/",
+    region: "global",
+    priority: 2,
+    reliability: "high"
+  },
+  {
+    id: "koreatimes",
+    name: "Korea Times",
+    url: "https://www.koreatimes.co.kr/www/rss/nation.xml",
+    region: "global",
+    priority: 2,
+    reliability: "high"
+  },
+  {
+    id: "straitstimes-singapore",
+    name: "Straits Times Singapore",
+    url: "https://www.straitstimes.com/news/world/rss.xml",
+    region: "global",
+    priority: 2,
+    reliability: "high"
+  },
+  {
+    id: "thenews-pakistan",
+    name: "The News Pakistan",
+    url: "https://www.thenews.com.pk/rss/1/1",
+    region: "global",
+    priority: 2,
+    reliability: "medium"
+  },
+  {
+    id: "hindustantimes-india",
+    name: "Hindustan Times India",
+    url: "https://www.hindustantimes.com/feeds/rss/world-news/rssfeed.xml",
+    region: "global",
+    priority: 2,
+    reliability: "high"
+  },
+  {
+    id: "timesofindia",
+    name: "Times of India World",
+    url: "https://timesofindia.indiatimes.com/rssfeeds/296589292.cms",
+    region: "global",
+    priority: 2,
+    reliability: "high"
+  },
+
+  // GLOBAL - MIDDLE EAST
+  {
+    id: "haaretz-israel",
+    name: "Haaretz Israel",
+    url: "https://www.haaretz.com/cmlink/1.628752",
+    region: "global",
+    priority: 2,
+    reliability: "high"
+  },
+  {
+    id: "timesofisrael",
+    name: "Times of Israel",
+    url: "https://www.timesofisrael.com/feed/",
+    region: "global",
+    priority: 2,
+    reliability: "high"
+  },
+  {
+    id: "arabnews",
+    name: "Arab News",
+    url: "https://www.arabnews.com/rss.xml",
+    region: "global",
+    priority: 2,
+    reliability: "high"
+  },
+  {
+    id: "thenational-uae",
+    name: "The National UAE",
+    url: "https://www.thenationalnews.com/rss",
+    region: "global",
+    priority: 2,
+    reliability: "high"
+  },
+  {
+    id: "middleeasteye",
+    name: "Middle East Eye",
+    url: "https://www.middleeasteye.net/rss",
+    region: "global",
+    priority: 2,
+    reliability: "medium"
+  },
+
+  // GLOBAL - AFRICA
+  {
+    id: "dailymaverick-southafrica",
+    name: "Daily Maverick South Africa",
+    url: "https://www.dailymaverick.co.za/dmrss/",
+    region: "global",
+    priority: 2,
+    reliability: "high"
+  },
+  {
+    id: "allafrica",
+    name: "AllAfrica News",
+    url: "https://allafrica.com/tools/headlines/rdf/latest/headlines.rdf",
+    region: "global",
+    priority: 2,
+    reliability: "medium"
+  },
+  {
+    id: "theafricareport",
+    name: "The Africa Report",
+    url: "https://www.theafricareport.com/feed/",
+    region: "global",
+    priority: 2,
+    reliability: "high"
+  },
+
+  // GLOBAL - RUSSIA
+  {
+    id: "themoscowtimes",
+    name: "The Moscow Times",
+    url: "https://www.themoscowtimes.com/rss/news",
+    region: "global",
+    priority: 2,
+    reliability: "high"
+  },
+  {
+    id: "tass-russia",
+    name: "TASS Russia",
+    url: "https://tass.com/rss/v2.xml",
+    region: "global",
+    priority: 2,
+    reliability: "medium"
+  },
+
+  // US - Additional Sources
+  {
+    id: "nytimes-world",
+    name: "New York Times World",
+    url: "https://rss.nytimes.com/services/xml/rss/nyt/World.xml",
+    region: "us",
+    priority: 2,
+    reliability: "high"
+  },
+  {
+    id: "washingtonpost-world",
+    name: "Washington Post World",
+    url: "https://feeds.washingtonpost.com/rss/world",
+    region: "us",
+    priority: 2,
+    reliability: "high"
+  },
+  {
+    id: "wsj-world",
+    name: "Wall Street Journal World",
+    url: "https://feeds.a.dj.com/rss/RSSWorldNews.xml",
+    region: "us",
+    priority: 2,
+    reliability: "high"
+  },
+  {
+    id: "foreignpolicy",
+    name: "Foreign Policy Magazine",
+    url: "https://foreignpolicy.com/feed/",
+    region: "us",
+    priority: 2,
+    reliability: "high"
+  },
+  {
+    id: "thehill-international",
+    name: "The Hill International",
+    url: "https://thehill.com/rss/syndicator/19109",
+    region: "us",
+    priority: 2,
+    reliability: "high"
+  },
+
+  // SPECIALIZED - Defense & Security
+  {
+    id: "janes-defense",
+    name: "Janes Defense",
+    url: "https://www.janes.com/feeds/news",
+    region: "global",
+    priority: 3,
+    reliability: "high"
+  },
+  {
+    id: "defenseone",
+    name: "Defense One",
+    url: "https://www.defenseone.com/rss/",
+    region: "us",
+    priority: 2,
+    reliability: "high"
+  },
+
+  // SPECIALIZED - Economics & Trade
+  {
+    id: "ft-world",
+    name: "Financial Times World",
+    url: "https://www.ft.com/world?format=rss",
+    region: "global",
+    priority: 2,
+    reliability: "high"
+  },
+  {
+    id: "economist-world",
+    name: "The Economist World",
+    url: "https://www.economist.com/international/rss.xml",
+    region: "global",
+    priority: 2,
+    reliability: "high"
+  },
+
+  // Alternative & Regional
+  {
+    id: "counterpunch",
+    name: "CounterPunch",
+    url: "https://www.counterpunch.org/feed/",
+    region: "us",
+    priority: 3,
+    reliability: "medium"
+  },
+  {
+    id: "commondreams",
+    name: "Common Dreams",
+    url: "https://www.commondreams.org/feeds/feed.rss",
+    region: "us",
+    priority: 3,
+    reliability: "medium"
   }
 ];
 
