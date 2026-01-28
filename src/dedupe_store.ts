@@ -35,6 +35,14 @@ function init() {
     CREATE INDEX IF NOT EXISTS idx_dedupe_url ON dedupe_entries(url_hash);
     CREATE INDEX IF NOT EXISTS idx_dedupe_canonical ON dedupe_entries(canonical_url);
     CREATE INDEX IF NOT EXISTS idx_dedupe_topic ON dedupe_entries(topic_hash);
+
+    CREATE TABLE IF NOT EXISTS topic_cooldown (
+      topic_hash TEXT PRIMARY KEY,
+      posted_at TEXT,
+      title TEXT,
+      url TEXT
+    );
+    CREATE INDEX IF NOT EXISTS idx_topic_cooldown_posted ON topic_cooldown(posted_at);
   `);
 }
 init();

@@ -114,10 +114,11 @@ REGLAS DURAS (si violas una, debes responder con mode=null, tweet.text="SKIP"):
 6) Estilo: español, tono sobrio e imparcial, conciso. Cero relleno.
 7) Formato: elige "single" o "thread3":
    - single: 1 tuit (<= 260 chars) + línea final de URL.
-   - thread3: 3 tuits máximo:
-     T1: Qué pasó + por qué importa (1–2 frases, sin humo).
-     T2: Contexto con 1–2 datos DEL snippet (actores reales, lugar, medida/acción).
-     T3: Qué vigilar (2 triggers concretos basados en el texto) + línea final URL.
+   - thread3: EXACTAMENTE 3 tuits DISTINTOS (SIN REPETIR CONTENIDO):
+     T1: El titular/noticia principal en 1 frase concisa.
+     T2: Contexto o reacción de otro actor (país, líder, institución). DIFERENTE a T1.
+     T3: Qué vigilar o implicación geopolítica + línea final URL.
+   IMPORTANTE: Cada tuit debe tener contenido ÚNICO. NUNCA repitas el mismo texto.
    Nunca uses "A/B: …", ni CTA tipo "Sígueme para más".
 
 SCORING INTERNO (solo para decidir post/skip):
