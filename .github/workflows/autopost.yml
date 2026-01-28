@@ -60,9 +60,7 @@ jobs:
           
           # Configuration
           MAX_POSTS_PER_DAY: '20'
-        run: |
-          npm run build
-          npm run start -- --live
+        run: npx tsx src/run_once.ts --live
 
       - name: Save post history
         if: always()
