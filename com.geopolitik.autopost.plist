@@ -1,0 +1,42 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>Label</key>
+    <string>com.geopolitik.autopost</string>
+    
+    <key>ProgramArguments</key>
+    <array>
+        <string>bash</string>
+        <string>/Users/alexgonzalez/Youtube WorkSpace/geopolitik-x-autopost/scripts/autopost-hourly.sh</string>
+    </array>
+    
+    <!-- Ejecutar cada hora (3600 segundos) -->
+    <key>StartInterval</key>
+    <integer>3600</integer>
+    
+    <!-- Logs -->
+    <key>StandardOutPath</key>
+    <string>/Users/alexgonzalez/Youtube WorkSpace/geopolitik-x-autopost/logs/launchd-stdout.log</string>
+    
+    <key>StandardErrorPath</key>
+    <string>/Users/alexgonzalez/Youtube WorkSpace/geopolitik-x-autopost/logs/launchd-stderr.log</string>
+    
+    <!-- Trabajar desde el directorio correcto -->
+    <key>WorkingDirectory</key>
+    <string>/Users/alexgonzalez/Youtube WorkSpace/geopolitik-x-autopost</string>
+    
+    <!-- Variables de entorno -->
+    <key>EnvironmentVariables</key>
+    <dict>
+        <key>PATH</key>
+        <string>/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin:/opt/homebrew/bin</string>
+        <key>NODE_ENV</key>
+        <string>production</string>
+        <key>X_LIVE</key>
+        <string>1</string>
+        <key>IMAGE_LIVE</key>
+        <string>1</string>
+    </dict>
+</dict>
+</plist>

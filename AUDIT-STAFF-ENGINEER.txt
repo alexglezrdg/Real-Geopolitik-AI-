@@ -1,0 +1,366 @@
+================================================================================
+STAFF ENGINEER AUDIT - GEOPOLITIK X AUTOPOST
+================================================================================
+
+FECHA: 2026-01-27
+AUDITOR: Claude Haiku (Staff Engineer Mode)
+ENFOQUE: Confiabilidad + Costo + Limpieza
+
+================================================================================
+A) MAPA DEL SISTEMA
+================================================================================
+
+ENTRYPOINTS:
+  1. src/run_once.ts (línea 812+)
+     - Main orchestrator
+     - CLI args: --live, --dry-run, --url
+     - Calls: pickFirstNotDuplicate → generateThreadWithClaude/buildTemplate → postThread
+
+  2. src/scheduler.ts
+     - Cron scheduler (hourly/daily)
+     - Calls: runOnce() in loop
+     - Environment-driven (SCHEDULER_ENABLED, SCHEDULE_CRON)
+
+DATA SOURCES:
+  3. src/rss.ts
+     - Fetches from 25+ RSS sources (news_sources.ts)
+     - Returns: FeedItem[] with title, url, snippet, source, publishedAt
+
+  4. src/news_source_gdelt.ts
+     - GDELT API client (geopolitical event database)
+     - Status: Partially broken (content-type issues)
+
+FILTERING & SELECTION:
+  5. src/news_picker.ts
+     - scoreStory() → scores by geopolitics keywords + region priority
+     - pickTopStories() → returns ranked candidates
+     - detectUrgencyTag() → ÚLTIMA HORA / CLAVE / EN DESARROLLO
+
+  6. src/geo_gate.ts
+     - geoGate() → allows/blocks by region + hard keywords
+     - STATUS: ENFORCED in pickFirstNotDuplicate()
+
+DEDUPLICATION (4-LAYER):
+  7. src/dedupe_store.ts
+     - Layer 1: DUP_URL (canonical_url match)
+     - Layer 2: DUP_FP (strong fingerprint)
+     - Layer 3: DUP_NEAR (simhash Hamming ≤3)
+     - Layer 4: DUP_TOPIC (topic_hash with stopwords)
+     - TTL: 14 days (configurable)
+     - Database: SQLite dedupe_entries table
+
+  8. src/url_resolver.ts
+     - resolveFinalUrl() → follows redirects
+     - resolveFinalUrlWithGoogleNews() → handles Google News RSS
+     - normalizeUrl() → removes tracking params
+     - Timeout: 3000ms
+
+GENERATION:
+  9. src/claude.ts
+     - generateThreadWithClaude() → LLM-based thread generation
+     - Max 3 tweets per thread
+     - Calls OpenAI/Claude API
+     - TOKEN COST: ~2000 tokens per post
+
+  10. src/curator-llm.ts
+      - refineCandidatesWithLLM() → LLM-based filtering
+      - STATUS: SECONDARY (used by some paths)
+
+  11. src/run_once.ts (buildTemplateThreadNewsPack)
+      - Deterministic template (no LLM call)
+      - TOKEN COST: ~100 tokens per post
+      - Used when score < LLM_SCORE_THRESHOLD (default 85)
+
+FORMATTING:
+  12. src/run_once.ts (buildFinalTweetText, stripUrlsAndMoreDetails)
+      - Ensures single URL: "Más detalles: {url}"
+      - Removes duplicates via stripUrlsAndMoreDetails()
+
+  13. src/post_writer_maestro.ts
+      - MaestroInput → formatted tweet
+      - STATUS: USED for some paths
+
+IMAGE GENERATION:
+  14. src/openai_image.ts
+      - generateNewsImage() → DALL-E image generation
+      - Requires IMAGE_LIVE=1
+      - TOKEN COST: ~$0.02-0.10 per image
+
+  15. src/image_composer.ts
+      - Compose images with portraits, overlays
+      - STATUS: ADVANCED (optional)
+
+  16. src/image_mode.ts
+      - Decides when to use image
+      - decideImageMode() → HYBRID/PORTRAIT/NONE
+
+POSTING:
+  17. src/x.ts
+      - postThread() → posts to X/Twitter
+      - Requires X_API_KEY, X_API_SECRET
+      - Returns: tweetIds[]
+
+STORAGE:
+  18. src/db.ts
+      - SQLite database (data/bot.sqlite)
+      - Tables: posts, dedupe_entries, curated_stories
+      - Functions: isAlreadyPosted(), markPosted(), getTodayPostCount()
+
+  19. src/post_history.ts
+      - canonicalizeUrl() → URL normalization
+      - recordPosted() → marks post in history
+      - hasRecentDuplicate() → checks 48h TTL
+
+PROCESS LOCK (Anti-parallel):
+  20. src/process_lock.ts
+      - .runlock file mechanism
+      - PID + stale detection (>30min)
+      - Prevents simultaneous execution
+
+================================================================================
+B) PROBLEMAS DETECTADOS
+================================================================================
+
+P0 (CRITICAL - ROMPE FUNCTIONALITY):
+────────────────────────────────────────────
+
+P0-1: TOPIC COOLDOWN NOT IMPLEMENTED
+  Evidence: src/dedupe_store.ts has topic_hash layer, but NO cooldown tracking
+  Impact: Same story (e.g., "bloqueo naval Cuba") can be posted multiple times in <72h if URL changes slightly
+  Solution: Add topic_cooldown table + check before posting
+  Severity: HIGH (user complaint: "same story repeated")
+
+P0-2: stripUrlsAndMoreDetails NOT RE-INJECTING URL
+  Evidence: src/run_once.ts line 133-142
+  Problem: Function strips ALL URLs but buildFinalTweetText() is called AFTER generation
+  Current: cleanText → suffix injected → but no guarantee final URL is there
+  Risk: Tweet might have 0 URLs or >1 URL in some edge cases
+  Solution: Guarantee single URL injection after all generation done
+
+P0-3: GDELT SOURCE BROKEN
+  Evidence: Live run showed "unexpected content-type: text/html"
+  Impact: No geopolitical signal from GDELT (25% of expected sources)
+  Solution: Fix URL or remove from active sources
+
+────────────────────────────────────────────
+
+P1 (HIGH - WASTE/INEFFICIENCY):
+────────────────────────────────────────────
+
+P1-1: CURATOR-LLM REDUNDANCY
+  Evidence: src/curator-llm.ts + src/curator.ts both exist
+  Problem: refineCandidatesWithLLM() is NOT used in run_once.ts flow
+  Impact: Dead code, confusing maintenance
+  Solution: Remove curator-llm or integrate properly
+
+P1-2: LLM CALLED EVEN FOR LOW SIGNAL
+  Evidence: src/run_once.ts line 597
+  Current: Check is "if (useLLM)" but fallback buildTemplate is only used if score <85
+  Problem: If score=87 but low-signal geopolitics, still calls expensive LLM
+  Solution: Add SECOND check for hard-geo-gate before LLM call
+
+P1-3: NO CACHING FOR REPEATED STORIES
+  Evidence: src/run_once.ts line 597+
+  Problem: If same story appears in RSS feed multiple times (common), still generates new tweet each run
+  Solution: Cache generated threads by topic_hash + reuse if within 72h
+
+P1-4: MULTIPLE POST HISTORY CHECKS
+  Evidence: src/run_once.ts line 175 (hasRecentDuplicate) + line 184 (dedupeCheck)
+  Problem: Two similar dedup checks, first is 48h TTL, second is 14d
+  Redundancy: Can consolidate
+  Solution: Merge into single consistent dedup call
+
+────────────────────────────────────────────
+
+P2 (MEDIUM - TECHNICAL DEBT):
+────────────────────────────────────────────
+
+P2-1: 80+ DOCUMENTATION FILES (TECHNICAL DEBT)
+  Evidence: ls *.md *.txt in root
+  Status: DEPLOYMENT-*.md, FINAL-*.md, LIVE-*.md all present (50+ files)
+  Impact: Confusing, hard to maintain, unclear which is current
+  Solution: Archive old docs, keep 1 main guide
+
+P2-2: FAILED RSS SOURCES (5/25 INACTIVE)
+  Evidence: La Nación 404, Infobae 404, Reuters DNS error, AP XML error, Politico 403
+  Impact: Only 56% RSS coverage
+  Solution: Test and fix URLs or replace with working alternatives
+
+P2-3: NO TOPIC DEDUPLICATION COOLDOWN SEPARATE FROM URL
+  Evidence: src/dedupe_store.ts only checks topic_hash once
+  Problem: Should have separate cooldown table (topic_id + last_posted_at)
+  Solution: Add topic_cooldown table + 72h check
+
+P2-4: LOG OUTPUT NOT STRUCTURED
+  Evidence: src/run_once.ts logs with console.log (no structured format)
+  Impact: Hard to parse and monitor
+  Solution: Add JSON logging with reason codes (DUP_URL, DUP_TOPIC_COOLDOWN, etc.)
+
+================================================================================
+C) PLAN DE OPTIMIZACIÓN - 2 FASES
+================================================================================
+
+FASE 1 (INMEDIATA, SEGURA - Sin romper funcionalidad):
+════════════════════════════════════════════════════════
+
+1.1 - FIX: Consolidate duplicate dedup checks
+  What: Merge hasRecentDuplicate() + dedupeCheck() into single call
+  Where: src/run_once.ts line 175-190
+  How: Use checkDuplicate() (4-layer) directly, remove hasRecentDuplicate
+  Risk: LOW (both check same data, consolidating is cleaner)
+  Time: 10 min
+
+1.2 - FIX: Guarantee single URL in final tweet
+  What: Verify stripUrlsAndMoreDetails() always re-injects final URL
+  Where: src/run_once.ts buildFinalTweetText()
+  How: Assert URL count == 1 after buildFinalTweetText, log if not
+  Risk: LOW (just adds validation)
+  Time: 5 min
+
+1.3 - REMOVE: curator-llm dead code
+  What: Delete src/curator-llm.ts if not used
+  Where: Check imports in run_once.ts, search for refineCandidatesWithLLM
+  How: ripgrep to verify unused, then delete
+  Risk: MEDIUM (verify no hidden imports)
+  Time: 15 min
+
+1.4 - ADD: Topic cooldown table + check
+  What: Track "topic_id" (hash of {country, actors, issue}) with 72h cooldown
+  Where: New table topic_cooldown + check in pickFirstNotDuplicate()
+  How: topic_id = hash(country+main_entity+issue), check last_posted_at > now-72h
+  Risk: MEDIUM (new feature, but safe if 72h >= current no-check behavior)
+  Time: 30 min
+
+1.5 - FIX: GDELT source (or remove)
+  What: Either fix GDELT URL or remove from news_sources.ts
+  Where: src/news_sources.ts + src/news_source_gdelt.ts
+  How: Test URL, if fails > 5 times in row, disable
+  Risk: LOW
+  Time: 10 min
+
+1.6 - CLEANUP: Archive 80+ old docs
+  What: Move DEPLOYMENT-*.md, FINAL-*.md, ESTADO-*.md to /docs/archive/
+  Where: Root directory
+  How: mkdir -p docs/archive; mv DEPLOYMENT-*.md FINAL-*.md docs/archive/
+  Risk: NONE (just archive, not delete)
+  Time: 5 min
+
+1.7 - ADD: LLM gate check (geo-hard keywords)
+  What: Check hard-geo-keywords BEFORE LLM call, not just score
+  Where: src/run_once.ts line 587+
+  How: if (score >= 85 AND hasHardGeoKeywords(story)) use LLM, else template
+  Risk: LOW
+  Time: 15 min
+
+────────────────────────────────────────────
+
+FASE 2 (MAYORES, POST-VERIFIED):
+════════════════════════════════════════════════════════
+
+2.1 - REFACTOR: Extract dedup logic into separate module
+  What: Move pickFirstNotDuplicate() into standalone dedup orchestrator
+  Why: Cleaner, testable, reusable
+  Risk: MEDIUM (refactoring)
+
+2.2 - ADD: Story cache (by topic_id)
+  What: Cache generated tweets by topic_hash, reuse within 72h
+  Why: If same topic appears in multiple feeds, don't regenerate
+  Risk: MEDIUM (cache invalidation)
+
+2.3 - REFACTOR: Structured logging (JSON)
+  What: Replace console.log with structured logger (timestamp, reason, metadata)
+  Why: Better monitoring
+  Risk: LOW
+
+2.4 - ADD: Metrics/dashboard
+  What: Count posts/day, dedup hits by reason, token usage, etc.
+  Why: Better understanding of system behavior
+  Risk: LOW
+
+================================================================================
+D) CLEANUP PLAN
+================================================================================
+
+ARCHIVABLE DOCS (80+ files → 5 core docs):
+────────────────────────────────────────────
+
+1. Keep: README.md (overview)
+   - What is this bot?
+   - Quick start
+   - Architecture diagram (1 page)
+
+2. Keep: DEPLOYMENT.md (how to deploy/operate)
+   - Prerequisites
+   - Environment setup
+   - Commands to run/stop
+   - Monitoring
+
+3. Keep: DEDUP-SYSTEM.md (technical deep dive)
+   - 4-layer dedup explanation
+   - Topic cooldown
+   - TTL configuration
+
+4. Keep: TROUBLESHOOTING.md (common issues)
+   - "Bot posting duplicates" → check dedup logs
+   - "RSS not loading" → check news_sources.ts
+   - "LLM token overage" → check score threshold
+
+5. Keep: CHECKLIST.txt (QA checklist before deploy)
+   - Run tests
+   - Check logs
+   - Verify no duplicates in last 10 posts
+   - etc.
+
+DELETE/ARCHIVE:
+   - DEPLOYMENT-*.md (40+ variants) → archive
+   - FINAL-*.md (20+ variants) → archive
+   - IMPLEMENTATION-*.md → archive
+   - STATUS-*.md → archive
+   - VALIDATION-*.md → archive
+   - *-COMPLETE.md → archive
+   - RESUMEN-*.md, ESTADO-*.md → archive
+   - TEST-*.md, SETUP.md → consolidate into DEPLOYMENT.md
+
+SCRIPTS TO CONSOLIDATE:
+   - scripts/autopost-hourly.sh + scripts/autopost-hourly.ps1 → keep only .sh
+   - scripts/test-curator.ts → move to tests/ or delete if unused
+
+FILES TO DELETE (if unused):
+   - src/curator-llm.ts (if not imported)
+   - src/video_integration.ts (if not used)
+   - data/old-tests/ (if exists)
+
+================================================================================
+E) IMPLEMENTACIÓN - FASE 1
+================================================================================
+
+[Será hecho en pasos con diffs]
+
+================================================================================
+F) CHECKLIST DE VERIFICACIÓN
+================================================================================
+
+Después de Fase 1, ejecutar:
+
+1) npm run build 2>&1 | grep -i error
+   → Debe: 0 errors
+
+2) npm run test -- test-integration-zero-dup.ts 2>&1 | tail -20
+   → Esperado: 5/5 scenarios passed
+
+3) Dry-run: npm run dev -- --dry-run 2>&1 | grep -i "dup\|skip"
+   → Verificar: Dedup working, no false positives
+
+4) Check single URL:
+   sqlite3 data/bot.sqlite "SELECT text FROM posts WHERE text LIKE '%Más detalles%' LIMIT 5;" | grep -c "Más detalles"
+   → Esperado: 1 per post (or 0 if text is in DB differently)
+
+5) Check topic cooldown:
+   sqlite3 data/bot.sqlite "SELECT name FROM sqlite_master WHERE type='table' AND name='topic_cooldown';"
+   → Esperado: table exists
+
+6) Docs structure:
+   ls -1 *.md | wc -l
+   → Before: 50+, After: 5
+
+================================================================================

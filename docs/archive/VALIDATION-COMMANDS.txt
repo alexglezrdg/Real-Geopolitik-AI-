@@ -1,0 +1,168 @@
+================================================================================
+VALIDATION COMMANDS - Run These To Verify Everything Works
+================================================================================
+
+QUICK VALIDATION (2 min):
+  npm run test -- test-layer4-topic.ts
+  npm run test -- test-integration-zero-dup.ts
+
+FULL DEBUG MODE (5 min):
+  DEDUPE_DEBUG=1 URL_RESOLVE_DEBUG=1 npm run test -- test-integration-zero-dup.ts
+
+COMPILE CHECK:
+  npx tsc --noEmit
+
+RUN LIVE WITH DEBUG:
+  DEDUPE_DEBUG=1 npm run dev -- --live 2>&1 | head -100
+
+================================================================================
+EXPECTED RESULTS
+================================================================================
+
+test-layer4-topic.ts should output:
+  ✅ Test 1: Exact Duplicate
+  ✅ Test 2: Rewritten Title
+  ✅ Test 3: Mixed URL+Title
+  ✅ Test 4: Different Story
+  ✅ Test 5: Single URL
+  Total: 5/5 tests passed
+
+test-integration-zero-dup.ts should output:
+  ✅ Scenario 1: Same Story, 3 URLs
+  ✅ Scenario 2: Title Rewritten
+  ✅ Scenario 3: Single URL
+  ✅ Scenario 4: Token Control
+  ✅ Scenario 5: Token Savings
+  TOTAL: 5/5 scenarios passed
+  🎉 ALL TESTS PASSED - PRODUCTION READY
+
+================================================================================
+DATABASE MIGRATION (if needed)
+================================================================================
+
+If you get "no such column: topic_hash" error, run:
+
+  sqlite3 data/bot.sqlite << 'EOF'
+  ALTER TABLE dedupe_entries ADD COLUMN topic_hash TEXT;
+  CREATE INDEX idx_dedupe_topic ON dedupe_entries(topic_hash);
+  EOF
+
+Or use the migration script:
+  npm run migrate
+
+================================================================================
+DEPLOYMENT STEPS
+================================================================================
+
+1. Backup database:
+   cp data/bot.sqlite data/bot.sqlite.backup
+
+2. Run tests (must all pass):
+   npm run test -- test-layer4-topic.ts
+   npm run test -- test-integration-zero-dup.ts
+
+3. Check for compile errors:
+   npx tsc --noEmit
+
+4. Deploy (if all tests pass):
+   npm run build
+
+5. Start bot:
+   npm run dev -- --live
+
+6. Monitor logs:
+   tail -f logs/*.log | grep -i "dup\|topic"
+
+================================================================================
+ROLLBACK STEPS (if something breaks)
+================================================================================
+
+1. Stop bot:
+   pkill -f "npm run dev"
+
+2. Restore database backup:
+   cp data/bot.sqlite.backup data/bot.sqlite
+
+3. Revert dedupe_store.ts changes (restore from git):
+   git checkout src/dedupe_store.ts
+
+4. Restart:
+   npm run dev -- --live
+
+================================================================================
+MONITORING AFTER DEPLOYMENT
+================================================================================
+
+Check dedup statistics:
+  sqlite3 data/bot.sqlite "SELECT COUNT(*) as total_stored FROM dedupe_entries;"
+  sqlite3 data/bot.sqlite "SELECT topic_hash, COUNT(*) as count FROM dedupe_entries WHERE topic_hash IS NOT NULL GROUP BY topic_hash LIMIT 5;"
+
+Monitor duplicate detections:
+  tail -f logs/*.log | grep "\[DEDUPE\]"
+
+Check token usage (template vs LLM):
+  tail -f logs/*.log | grep "deterministic\|generateThreadWithClaude"
+
+View recent posts:
+  sqlite3 data/bot.sqlite "SELECT title, posted_at FROM posts ORDER BY posted_at DESC LIMIT 10;"
+
+================================================================================
+KEY FILES
+================================================================================
+
+Modified:
+  src/dedupe_store.ts
+    - Layer 4 topic_hash added
+    - buildTopicHash() function
+    - debugTopicHash() for inspection
+    - Updated schema and queries
+
+New:
+  test-layer4-topic.ts
+    - 5 test cases for Layer 4
+    
+  test-integration-zero-dup.ts
+    - 5 integration scenarios
+    - End-to-end validation
+
+Already implemented (no changes needed):
+  src/run_once.ts
+    - Token control (LLM_SCORE_THRESHOLD)
+    - Process lock integration
+    - stripUrlsAndMoreDetails()
+  
+  src/url_resolver.ts
+    - Google News extraction
+    - URL normalization
+    - Canonical URL resolution
+  
+  src/news_picker.ts
+    - Hard geopolitics scoring
+    - Regional priority
+    - RSS sources (25+)
+
+================================================================================
+TROUBLESHOOTING
+================================================================================
+
+Q: "no such column: topic_hash" error
+A: Run migration: sqlite3 data/bot.sqlite "ALTER TABLE dedupe_entries ADD COLUMN topic_hash TEXT;"
+
+Q: Tests show "isDuplicate not found"
+A: Make sure you're awaiting checkDuplicate(): const dup = await checkDuplicate(...)
+
+Q: Topic hash not matching for related stories
+A: Check if stopwords are filtering out key terms. Run debugTopicHash() to inspect.
+
+Q: Too many false positives (stories blocked incorrectly)
+A: Increase Simhash Hamming threshold or adjust stopwords list
+
+Q: Token usage still high
+A: Check LLM_SCORE_THRESHOLD setting (default 85)
+   Lower it to use more templates: export LLM_SCORE_THRESHOLD=75
+
+Q: Lock timeout errors
+A: Increase lock timeout in src/process_lock.ts:
+   Change acquireLock(5000) to acquireLock(10000)
+
+================================================================================

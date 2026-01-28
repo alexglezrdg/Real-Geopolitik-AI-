@@ -1,0 +1,41 @@
+{
+  "version": "2.0.0",
+  "tasks": [
+    {
+      "label": "RG: Post LIVE with image",
+      "type": "shell",
+      "command": "npm",
+      "args": ["run", "dev", "--", "--live"],
+      "options": {
+        "cwd": "/Users/alexgonzalez/Youtube WorkSpace/geopolitik-x-autopost",
+        "env": {
+          "X_LIVE": "1",
+          "IMAGE_LIVE": "1"
+        }
+      },
+      "presentation": {
+        "reveal": "always",
+        "panel": "shared"
+      },
+      "problemMatcher": []
+    },
+    {
+      "label": "RG: Autopost hourly",
+      "type": "shell",
+      "command": "bash",
+      "args": ["./scripts/autopost-hourly.sh"],
+      "options": {
+        "cwd": "/Users/alexgonzalez/Youtube WorkSpace/geopolitik-x-autopost",
+        "env": {
+          "X_LIVE": "1",
+          "IMAGE_LIVE": "1"
+        }
+      },
+      "presentation": {
+        "reveal": "always",
+        "panel": "shared"
+      },
+      "problemMatcher": []
+    }
+  ]
+}
