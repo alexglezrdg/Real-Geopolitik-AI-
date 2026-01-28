@@ -11,14 +11,78 @@ import type { VisualMetadata } from "./claude.js";
  * Requires OPENAI_API_KEY to be set.
  *
  * PROCESS:
- * 1. Generate base image via DALL-E 3 (no logo)
- * 2. Overlay RG logo using Sharp (optional, requires rg_logo.png)
+ * 1. Try to extract OG image from news URL (FREE - no API cost)
+ * 2. If no OG image, generate via DALL-E 3 (costs ~$0.04)
+ * 3. Overlay RG logo using Sharp (optional, requires rg_logo.png)
  */
 
 const OPENAI_API_KEY = process.env.OPENAI_API_KEY;
 const IMAGE_LIVE = process.env.IMAGE_LIVE === "1";
 const OUTPUT_DIR = process.env.IMAGE_OUTPUT_DIR || "./out/images";
 const LOGO_PATH = process.env.RG_LOGO_PATH || "./assets/rg_logo.png";
+
+/**
+ * Extract Open Graph image from a news URL (FREE - saves DALL-E costs)
+ */
+async function extractOGImage(url: string): Promise<string | null> {
+  try {
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 8000);
+    
+    const res = await fetch(url, {
+      headers: {
+        "User-Agent": "Mozilla/5.0 (compatible; Googlebot/2.1; +http://www.google.com/bot.html)",
+        "Accept": "text/html",
+      },
+      signal: controller.signal,
+    });
+    clearTimeout(timeout);
+    
+    if (!res.ok) return null;
+    
+    const html = await res.text();
+    
+    // Extract og:image meta tag
+    const ogMatch = html.match(/<meta[^>]*property=["']og:image["'][^>]*content=["']([^"']+)["']/i) 
+                 || html.match(/<meta[^>]*content=["']([^"']+)["'][^>]*property=["']og:image["']/i);
+    
+    if (ogMatch && ogMatch[1]) {
+      const imageUrl = ogMatch[1];
+      // Validate it's a real image URL
+      if (imageUrl.startsWith("http") && /\.(jpg|jpeg|png|webp|gif)/i.test(imageUrl)) {
+        console.log(`   📷 Found OG image from source (FREE)`);
+        return imageUrl;
+      }
+    }
+    
+    return null;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Download image from URL and save locally
+ */
+async function downloadImage(imageUrl: string, outputPath: string): Promise<boolean> {
+  try {
+    const res = await fetch(imageUrl);
+    if (!res.ok) return false;
+    
+    const buffer = await res.arrayBuffer();
+    
+    // Ensure directory exists
+    const dir = path.dirname(outputPath);
+    if (!fs.existsSync(dir)) {
+      fs.mkdirSync(dir, { recursive: true });
+    }
+    
+    fs.writeFileSync(outputPath, Buffer.from(buffer));
+    return true;
+  } catch {
+    return false;
+  }
+}
 
 /**
  * VISUAL-ONLY PREFIX: forces DALL-E to generate clean visuals with NO text overlays
@@ -80,6 +144,45 @@ export async function generateNewsImage(
     return null;
   }
 
+  // Generate filename
+  const baseFilename =
+    options?.filename ||
+    `news-${new Date().toISOString().slice(0, 19).replace(/[:-]/g, "")}.png`;
+  const basePath = path.join(OUTPUT_DIR, baseFilename);
+
+  // Ensure output directory exists
+  if (!fs.existsSync(OUTPUT_DIR)) {
+    fs.mkdirSync(OUTPUT_DIR, { recursive: true });
+  }
+
+  // STEP 1: Try to extract OG image from source URL (FREE - no API cost)
+  if (sourceUrl) {
+    console.log(`   🔍 Checking source for image...`);
+    const ogImageUrl = await extractOGImage(sourceUrl);
+    
+    if (ogImageUrl) {
+      const downloaded = await downloadImage(ogImageUrl, basePath);
+      if (downloaded) {
+        console.log(`   ✅ Using source image (FREE - saved DALL-E cost)`);
+        console.log(`✅ Base image saved: ${basePath}`);
+        // Apply overlays (badge + logo) same as DALL-E images
+        if (options?.includeLogoOverlay !== false) {
+          try {
+            const finalPath = await applyOverlays(basePath, visual.header);
+            console.log(`✅ SVG badge and logo overlay applied: ${finalPath}`);
+            return finalPath;
+          } catch (overlayErr) {
+            console.warn(`⚠️  Overlay failed, returning base image`);
+            return basePath;
+          }
+        }
+        return basePath;
+      }
+    }
+    console.log(`   ℹ️  No source image found, falling back to DALL-E`);
+  }
+
+  // STEP 2: Fall back to DALL-E if no OG image found
   if (!OPENAI_API_KEY) {
     console.warn(`⚠️  Image generation requires OPENAI_API_KEY. Skipping.`);
     return null;
@@ -105,7 +208,7 @@ export async function generateNewsImage(
       .replace("{topic}", topic)
       .replace("{scene}", scene);
 
-    console.log(`🎨 Generating image: "${visual.headline.slice(0, 40)}..."`);
+    console.log(`🎨 Generating DALL-E image: "${visual.headline.slice(0, 40)}..."`);
 
     // Call OpenAI DALL-E 3 API with 1:1 square format (1024x1024)
     // Works better for X feeds than 9:16
@@ -137,18 +240,7 @@ export async function generateNewsImage(
       throw new Error("No image URL in OpenAI response");
     }
 
-    // Download image
-    const baseFilename =
-      options?.filename ||
-      `news-${new Date().toISOString().slice(0, 19).replace(/[:-]/g, "")}.png`;
-    const basePath = path.join(OUTPUT_DIR, baseFilename);
-
-    // Ensure output directory exists
-    if (!fs.existsSync(OUTPUT_DIR)) {
-      fs.mkdirSync(OUTPUT_DIR, { recursive: true });
-    }
-
-    // Download and save base image
+    // Download and save base image (basePath already defined above)
     const imageRes = await fetch(imageUrl);
     if (!imageRes.ok) {
       throw new Error(`Failed to download image: ${imageRes.status}`);
