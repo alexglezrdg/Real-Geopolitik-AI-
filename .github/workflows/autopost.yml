@@ -56,7 +56,7 @@ jobs:
           
           # Enable live posting
           X_LIVE: '1'
-          IMAGE_LIVE: '1'
+          IMAGE_LIVE: '0'
           
           # Configuration
           MAX_POSTS_PER_DAY: '20'
