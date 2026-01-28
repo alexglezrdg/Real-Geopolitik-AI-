@@ -57,7 +57,9 @@ jobs:
           
           # Configuration
           MAX_POSTS_PER_DAY: '20'
-        run: npm run dev -- --live
+        run: |
+          npm run build
+          npm run start -- --live
 
       - name: Save post history
         if: always()

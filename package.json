@@ -5,6 +5,8 @@
   "type": "module",
   "scripts": {
     "dev": "tsx src/run_once.ts",
+    "build": "tsc",
+    "start": "node dist/run_once.js",
     "scheduler": "tsx src/scheduler.ts"
   },
   "dependencies": {
