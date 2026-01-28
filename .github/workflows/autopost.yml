@@ -51,6 +51,9 @@ jobs:
           # Anthropic API
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
           
+          # OpenAI API (for image generation)
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          
           # Enable live posting
           X_LIVE: '1'
           IMAGE_LIVE: '1'
