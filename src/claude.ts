@@ -179,7 +179,8 @@ FECHA_ISO: ${getTodayDate()}
 
 GENERA EL JSON AHORA (sin markdown, solo JSON válido).`;
 
-  async function fetchFromClaude(systemPrompt: string, userMsg: string): Promise<NewsPack> {
+  async function fetchFromClaude(systemPrompt: string, userMsg: string, retryCount = 0): Promise<NewsPack> {
+    const maxRetries = 3;
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), 15000); // 15 second timeout
 
@@ -200,6 +201,15 @@ GENERA EL JSON AHORA (sin markdown, solo JSON válido).`;
         }),
         signal: controller.signal as any,
       });
+
+      // Retry on transient errors (429, 500, 502, 503, 529)
+      if ([429, 500, 502, 503, 529].includes(res.status) && retryCount < maxRetries) {
+        clearTimeout(timeoutId);
+        const delay = Math.pow(2, retryCount) * 1000 + Math.random() * 1000;
+        console.warn(`⚠️  API error ${res.status}, retrying in ${Math.round(delay/1000)}s... (attempt ${retryCount + 1}/${maxRetries})`);
+        await new Promise(resolve => setTimeout(resolve, delay));
+        return fetchFromClaude(systemPrompt, userMsg, retryCount + 1);
+      }
 
       if (!res.ok) {
         throw new Error(`API error ${res.status}`);
@@ -420,7 +430,8 @@ ${explicitBlockade ? "[CONFIRMADO: Fuente menciona 'bloqueo naval' explícitamen
 
 Genera el JSON ahora.`;
 
-  async function fetchFromClaude(systemPrompt: string, userMsg: string): Promise<NewsPack> {
+  async function fetchFromClaude(systemPrompt: string, userMsg: string, retryCount = 0): Promise<NewsPack> {
+    const maxRetries = 3;
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), 15000);
 
@@ -441,6 +452,15 @@ Genera el JSON ahora.`;
         }),
         signal: controller.signal as any,
       });
+
+      // Retry on transient errors (429, 500, 502, 503, 529)
+      if ([429, 500, 502, 503, 529].includes(res.status) && retryCount < maxRetries) {
+        clearTimeout(timeoutId);
+        const delay = Math.pow(2, retryCount) * 1000 + Math.random() * 1000;
+        console.warn(`⚠️  API error ${res.status}, retrying in ${Math.round(delay/1000)}s... (attempt ${retryCount + 1}/${maxRetries})`);
+        await new Promise(resolve => setTimeout(resolve, delay));
+        return fetchFromClaude(systemPrompt, userMsg, retryCount + 1);
+      }
 
       if (!res.ok) {
         throw new Error(`API error ${res.status}`);
@@ -544,7 +564,17 @@ Genera el JSON ahora.`;
   }
 }
 function buildFallbackNewsPack(title: string, url: string, source: string): NewsPack {
-  const tweet = safeTrim(`🚨 ÚLTIMA HORA | ${title}`, 270);
+  // Add variation to avoid X duplicate detection
+  const hooks = [
+    "🚨 ÚLTIMA HORA |",
+    "⚡ ALERTA |",
+    "🔴 AHORA |",
+    "📍 NOTICIA |",
+    "🌍 GEOPOLÍTICA |",
+  ];
+  const hook = hooks[Math.floor(Math.random() * hooks.length)];
+  const timestamp = new Date().toLocaleTimeString("es", { hour: "2-digit", minute: "2-digit" });
+  const tweet = safeTrim(`${hook} ${title} [${timestamp}]`, 270);
 
   return {
     mode: "single",
