@@ -200,9 +200,24 @@ export async function generateNewsImage(
 
   try {
     // Build final prompt from template - VISUAL ONLY (no text)
-    // Extract topic/scene from visual metadata (keep brief for clarity)
-    const topic = visual.headline.slice(0, 50);
-    const scene = visual.image_brief || "editorial news photography style";
+    // SANITIZE: Remove political figure names to avoid DALL-E safety filters
+    const sanitizeForDalle = (text: string): string => {
+      // Remove common political figure names that trigger safety filters
+      const politicalFigures = [
+        /\b(trump|biden|putin|xi jinping|maduro|lula|santos|zelensky|netanyahu|khamenei|erdogan|macron|scholz|modi)\b/gi,
+        /\b(presidente|president|ministro|minister|líder|leader|dictador|dictator)\b/gi,
+      ];
+      let sanitized = text;
+      for (const pattern of politicalFigures) {
+        sanitized = sanitized.replace(pattern, "");
+      }
+      return sanitized.replace(/\s+/g, " ").trim();
+    };
+
+    // Extract topic/scene - use image_brief primarily, fallback to sanitized headline
+    const rawTopic = visual.image_brief || visual.headline;
+    const topic = sanitizeForDalle(rawTopic).slice(0, 50) || "international diplomacy scene";
+    const scene = sanitizeForDalle(visual.image_brief || "") || "editorial news photography, government building, flags, formal setting";
 
     const finalPrompt = IMAGE_PROMPT_TEMPLATE
       .replace("{topic}", topic)
