@@ -27,17 +27,18 @@ export function geoGate(params: {
     "CARIBBEAN",
     "MIDDLE_EAST",
     "GLOBAL_GEO",
+    "GLOBAL",  // Also accept GLOBAL (common fallback)
   ]);
 
   if (allowed.has(region)) {
     return { ok: true, reason: null as null, region, score };
   }
 
-  // Non-geo exception only if very high confidence
-  if (score >= 85) {
+  // Non-geo exception if moderate+ confidence (lowered from 85 to allow more posts)
+  if (score >= 50) {
     return {
       ok: true,
-      reason: "non_geo_high_confidence" as const,
+      reason: "non_geo_moderate_confidence" as const,
       region,
       score,
     };

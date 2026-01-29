@@ -1,7 +1,9 @@
 import crypto from "crypto";
 import OAuth from "oauth-1.0a";
+import * as fs from "fs";
 
 const API_BASE = "https://api.x.com/2";
+const UPLOAD_BASE = "https://upload.twitter.com/1.1";
 
 type PostResult = { success: boolean; tweetIds: string[]; errors: string[] };
 type XEnvCheck = { ok: boolean; missing: string[] };
@@ -66,9 +68,60 @@ async function xRequest(method: "GET" | "POST", url: string, body?: any) {
   return json;
 }
 
-export async function postTweet(text: string, inReplyTo?: string) {
+/**
+ * Upload media (image) to X using v1.1 media upload endpoint
+ * Returns media_id_string for use in tweet payload
+ */
+async function uploadMedia(imagePath: string): Promise<string | null> {
+  try {
+    if (!fs.existsSync(imagePath)) {
+      console.error(`[X] Media file not found: ${imagePath}`);
+      return null;
+    }
+
+    const imageData = fs.readFileSync(imagePath);
+    const base64Data = imageData.toString("base64");
+    const mimeType = imagePath.toLowerCase().endsWith(".png") ? "image/png" : "image/jpeg";
+
+    const oauth = oauthClient();
+    const url = `${UPLOAD_BASE}/media/upload.json`;
+
+    // Use form-urlencoded for media upload
+    const formBody = `media_data=${encodeURIComponent(base64Data)}`;
+
+    const auth = oauth.toHeader(oauth.authorize({ url, method: "POST" }, token()));
+
+    const res = await fetch(url, {
+      method: "POST",
+      headers: {
+        ...auth,
+        "Content-Type": "application/x-www-form-urlencoded",
+      },
+      body: formBody,
+    });
+
+    const json = await res.json().catch(() => ({}));
+
+    if (!res.ok) {
+      console.error(`[X] Media upload failed ${res.status}: ${JSON.stringify(json).slice(0, 300)}`);
+      return null;
+    }
+
+    const mediaId = json?.media_id_string;
+    if (mediaId) {
+      console.log(`[X] Media uploaded successfully: ${mediaId}`);
+    }
+    return mediaId;
+  } catch (err) {
+    console.error(`[X] Media upload error: ${(err as Error).message}`);
+    return null;
+  }
+}
+
+export async function postTweet(text: string, inReplyTo?: string, mediaId?: string) {
   const payload: any = { text };
   if (inReplyTo) payload.reply = { in_reply_to_tweet_id: inReplyTo };
+  if (mediaId) payload.media = { media_ids: [mediaId] };
   const json = await xRequest("POST", `${API_BASE}/tweets`, payload);
   return json?.data?.id as string;
 }
@@ -77,8 +130,9 @@ export async function postTweet(text: string, inReplyTo?: string) {
  * SAFE BY DEFAULT:
  * - dryRun => never posts
  * - live requires BOTH: (--live or -l) AND X_LIVE=1
+ * @param imagePath - Optional path to image file to attach to FIRST tweet
  */
-export async function postThread(texts: string[], dryRun = true): Promise<PostResult> {
+export async function postThread(texts: string[], dryRun = true, imagePath?: string | null): Promise<PostResult> {
   if (!Array.isArray(texts) || texts.length === 0) {
     return { success: false, tweetIds: [], errors: ["Thread is empty"] };
   }
@@ -86,12 +140,14 @@ export async function postThread(texts: string[], dryRun = true): Promise<PostRe
   // 1) dryRun blocks everything
   if (dryRun) {
     console.log("[X] DRY RUN: posting disabled.");
+    if (imagePath) console.log(`[X] Would attach image: ${imagePath}`);
     return { success: true, tweetIds: ["dry-run"], errors: [] };
   }
 
   // 2) live arming switch
   if (!isArmedForLive()) {
     console.log("[X] SAFE MODE: live not armed (need --live AND X_LIVE=1). Posting blocked.");
+    if (imagePath) console.log(`[X] Would attach image: ${imagePath}`);
     return { success: true, tweetIds: ["safe-mode"], errors: [] };
   }
 
@@ -107,14 +163,28 @@ export async function postThread(texts: string[], dryRun = true): Promise<PostRe
     };
   }
 
-  // 4) post
+  // 4) Upload media if provided (attach to first tweet only)
+  let mediaId: string | undefined;
+  if (imagePath) {
+    console.log(`[X] Uploading media: ${imagePath}`);
+    const uploadedId = await uploadMedia(imagePath);
+    if (uploadedId) {
+      mediaId = uploadedId;
+    } else {
+      console.warn(`[X] Media upload failed, posting without image`);
+    }
+  }
+
+  // 5) post
   const ids: string[] = [];
   let prev: string | undefined;
 
   for (let i = 0; i < texts.length; i++) {
     const t = String(texts[i] ?? "").trim();
     if (!t) continue;
-    const id = await postTweet(t, prev);
+    // Attach media only to the FIRST tweet
+    const tweetMediaId = i === 0 ? mediaId : undefined;
+    const id = await postTweet(t, prev, tweetMediaId);
     ids.push(id);
     prev = id;
   }

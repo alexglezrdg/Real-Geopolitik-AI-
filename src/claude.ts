@@ -109,8 +109,9 @@ REGLAS DURAS (si violas una, debes responder con mode=null, tweet.text="SKIP"):
 4) 1 sola URL total: SOLO al final del ÚLTIMO tuit como línea separada:
    "Más detalles: {url}"
    NO incluyas URL en tweet.text (se agrega automáticamente en código).
-5) Hashtags: 0 a 3 máximo. Solo si son relevantes y específicos (p.ej. #Cuba #EEUU #Venezuela #Sanciones). 
-   No uses hashtags si el tema no es geopolítico.
+5) Hashtags: 0 a 3 máximo. DEBEN ser del TEMA/PAÍS mencionado en la noticia (ej: #Venezuela #Cuba #Iran #Ucrania #EEUU #China #Israel).
+   NUNCA uses el nombre del medio/fuente como hashtag (ej: NO #France24, NO #Reuters, NO #DW, NO #RunRun, NO #ElPais).
+   Solo hashtags de países, regiones, líderes o temas geopolíticos específicos.
 6) Estilo: español, tono sobrio e imparcial, conciso. Cero relleno.
 7) Formato: elige "single" o "thread3":
    - single: 1 tuit (<= 260 chars) + línea final de URL.
@@ -137,7 +138,7 @@ SALIDA: responde SOLO JSON VÁLIDO (sin markdown, sin texto extra):
   "mode": "single" | "thread3" | null,
   "language": "es",
   "urgency_tag": "ÚLTIMA HORA" | "CLAVE" | "EN DESARROLLO",
-  "topic_hashtags": ["Hashtag1", "Hashtag2?"],
+  "topic_hashtags": ["Venezuela", "EEUU"],
   "tweet": { "text": "string", "url": "${params.url ?? "null"}" },
   "thread": [],
   "visual": {
@@ -576,11 +577,35 @@ function buildFallbackNewsPack(title: string, url: string, source: string): News
   const timestamp = new Date().toLocaleTimeString("es", { hour: "2-digit", minute: "2-digit" });
   const tweet = safeTrim(`${hook} ${title} [${timestamp}]`, 270);
 
+  const deriveFallbackHashtagsFromTitle = (rawTitle: string): string[] => {
+    const t = (rawTitle || "").toLowerCase();
+    const rules: Array<[RegExp, string]> = [
+      [/cuba|havana|habana/, "Cuba"],
+      [/venezuela|caracas|maduro/, "Venezuela"],
+      [/trump/, "Trump"],
+      [/iran|teheran|tehran/, "Iran"],
+      [/ucrania|kiev|kyiv|rusia|moscu|donbas/, "Ucrania"],
+      [/china|beijing|taiwan/, "China"],
+      [/israel|gaza|hamas/, "Israel"],
+      [/palestina|cisjordania|west bank/, "Palestina"],
+      [/sancion|bloqueo|embargo/, "Sanciones"],
+      [/otan|nato/, "OTAN"],
+    ];
+
+    const tags: string[] = [];
+    for (const [re, tag] of rules) {
+      if (re.test(t)) tags.push(tag);
+    }
+
+    const unique = [...new Set(tags)].slice(0, 2);
+    return unique.length > 0 ? unique : ["Geopolitica"];
+  };
+
   return {
     mode: "single",
     language: "es",
     urgency_tag: "ÚLTIMA HORA",
-    topic_hashtags: [source.split(/\s+/)[0] || "Noticias"],
+    topic_hashtags: deriveFallbackHashtagsFromTitle(title),
     tweet: { text: tweet, url },
     thread: [],
     visual: {
@@ -604,4 +629,3 @@ function buildFallbackNewsPack(title: string, url: string, source: string): News
     },
   };
 }
-

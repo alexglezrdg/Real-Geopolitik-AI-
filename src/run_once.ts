@@ -50,9 +50,17 @@ function trimToTwitter(text: string, max = 270): string {
 
 // ============ HASHTAG UTILITIES ============
 const STOP_TAGS = new Set([
-  "google", "news", "com", "rss", "article", "articles", "france24", "bbc", 
+  "google", "news", "com", "rss", "article", "articles", "france24", "bbc",
   "reuters", "aljazeera", "dw", "ap", "afp", "guardian", "youtube", "video",
-  "twitter", "x", "feed", "blog"
+  "twitter", "x", "feed", "blog", "runrun", "elpais", "elmundo", "infobae",
+  "nyt", "cnn", "foxnews", "washingtonpost", "noticias", "diario", "efe",
+  "telesur", "rtve", "univision", "telemundo", "caracol", "eluniversal"
+]);
+
+const COMMON_TLDS = new Set([
+  "com", "org", "net", "edu", "gov", "int", "mil",
+  "es", "mx", "co", "ve", "ar", "br", "cl", "pe", "ec", "bo", "uy", "py",
+  "news", "info", "tv", "io"
 ]);
 
 function normalizeTag(s: string): string {
@@ -62,6 +70,32 @@ function normalizeTag(s: string): string {
     .replace(/[^a-zA-Z0-9]/g, "") // alphanumeric only
     .replace(/^\d+$/, "") // no pure numbers
     .trim();
+}
+
+function buildSourceStopTags(source?: string, url?: string): Set<string> {
+  const stop = new Set<string>([...STOP_TAGS].map((t) => t.toLowerCase()));
+
+  if (source) {
+    for (const raw of source.split(/\s+/)) {
+      const norm = normalizeTag(raw).toLowerCase();
+      if (norm) stop.add(norm);
+    }
+  }
+
+  if (url) {
+    try {
+      const host = new URL(url).hostname.toLowerCase();
+      for (const part of host.split(".")) {
+        if (!part || COMMON_TLDS.has(part)) continue;
+        const norm = normalizeTag(part).toLowerCase();
+        if (norm) stop.add(norm);
+      }
+    } catch {
+      // ignore malformed URLs
+    }
+  }
+
+  return stop;
 }
 
 // ============ GEOPOLITICAL GATING ============
@@ -780,15 +814,21 @@ export async function runOnce(dryRun = true, armed = false, manualUrl?: string):
     console.log(`   [IMAGE] generated=${imagePath}`);
   }
 
-  // ENFORCE HASHTAGS: Ensure 1-2 hashtags at end of tweet (exclude domain-based tags)
-  const ensureHashtags = (baseText: string, packHashtags?: string[]): string[] => {
+  // ENFORCE HASHTAGS: Ensure 1-2 hashtags at end of tweet (exclude domain/source-based tags)
+  const ensureHashtags = (
+    baseText: string,
+    packHashtags?: string[],
+    source?: string,
+    url?: string
+  ): string[] => {
     const allHashtags: string[] = [];
+    const stopTags = buildSourceStopTags(source, url);
     
     // 1. Try hashtags from LLM (NewsPack)
     if (packHashtags && packHashtags.length > 0) {
       for (const tag of packHashtags) {
         const normalized = normalizeTag(tag);
-        if (normalized && !STOP_TAGS.has(normalized.toLowerCase())) {
+        if (normalized && !stopTags.has(normalized.toLowerCase())) {
           allHashtags.push(tag);
         }
       }
@@ -818,7 +858,7 @@ export async function runOnce(dryRun = true, armed = false, manualUrl?: string):
     // 3. Deduplicate and limit to 2
     const finalTags = [...new Set(allHashtags)]
       .map(normalizeTag)
-      .filter(t => t && !STOP_TAGS.has(t.toLowerCase()))
+      .filter(t => t && !stopTags.has(t.toLowerCase()))
       .slice(0, 2);
     
     // 4. Fallback if still empty
@@ -832,7 +872,7 @@ export async function runOnce(dryRun = true, armed = false, manualUrl?: string):
   
   // Apply hashtag enforcement to first tweet
   // Returns array of final hashtags
-  const finalHashtags = ensureHashtags(texts[0], newsPack.topic_hashtags);
+  const finalHashtags = ensureHashtags(texts[0], newsPack.topic_hashtags, selected.source, selected.url);
   
   // Build final tweet text with URL and hashtags
   texts[0] = buildFinalTweetText(texts[0], selected.url, finalHashtags);
