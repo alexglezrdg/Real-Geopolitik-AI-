@@ -28,14 +28,25 @@ function init() {
       region TEXT,
       source TEXT,
       title TEXT,
-      created_at TEXT
+      created_at TEXT,
+      raw_url_hash TEXT
     );
     CREATE INDEX IF NOT EXISTS idx_dedupe_created_at ON dedupe_entries(created_at);
     CREATE INDEX IF NOT EXISTS idx_dedupe_fp ON dedupe_entries(fingerprint);
     CREATE INDEX IF NOT EXISTS idx_dedupe_url ON dedupe_entries(url_hash);
     CREATE INDEX IF NOT EXISTS idx_dedupe_canonical ON dedupe_entries(canonical_url);
     CREATE INDEX IF NOT EXISTS idx_dedupe_topic ON dedupe_entries(topic_hash);
+    CREATE INDEX IF NOT EXISTS idx_dedupe_raw_url ON dedupe_entries(raw_url_hash);
+  `);
 
+  // Migration: add raw_url_hash column if missing (for existing DBs)
+  try {
+    db.exec(`ALTER TABLE dedupe_entries ADD COLUMN raw_url_hash TEXT`);
+  } catch {
+    // Column already exists, ignore
+  }
+
+  db.exec(`
     CREATE TABLE IF NOT EXISTS topic_cooldown (
       topic_hash TEXT PRIMARY KEY,
       posted_at TEXT,
@@ -337,6 +348,19 @@ export async function checkDuplicate(params: {
 }): Promise<DedupeCheck> {
   pruneOldEntries();
 
+  const ttlCutoff = new Date(Date.now() - TTL_DAYS * 86400000).toISOString();
+
+  // Check 0: RAW URL (exact match, before any normalization) - FASTEST CHECK
+  const rawUrlHash = sha1(params.url);
+  const rawUrlHit = db
+    .prepare(`SELECT 1 FROM dedupe_entries WHERE (raw_url_hash = ? OR url_hash = ?) AND created_at >= ? LIMIT 1`)
+    .get(rawUrlHash, rawUrlHash, ttlCutoff);
+
+  if (rawUrlHit) {
+    if (DEBUG) console.log(`[DEDUPE] DUP_RAW_URL detected for ${params.url.slice(0, 60)}`);
+    return { isDuplicate: true, reason: "DUP_RAW_URL" };
+  }
+
   // Resolve canonical URL (handles Google News RSS)
   let canonicalUrl: string;
   try {
@@ -357,7 +381,6 @@ export async function checkDuplicate(params: {
   const topicHash = buildTopicHash(params.title);
 
   // Check 1: Canonical URL
-  const ttlCutoff = new Date(Date.now() - TTL_DAYS * 86400000).toISOString();
   const urlHit = db
     .prepare(`SELECT 1 FROM dedupe_entries WHERE url_hash = ? AND created_at >= ? LIMIT 1`)
     .get(urlHash, ttlCutoff);
@@ -404,16 +427,24 @@ export async function checkDuplicate(params: {
   return { isDuplicate: false, reason: null };
 }
 
-export function rememberDedup(params: {
+export async function rememberDedup(params: {
   url: string;
   title: string;
   region?: string;
   snippet?: string;
   source?: string;
 }) {
-  // Use normalized URL for storage (not async resolve, that's done in checkDuplicate)
-  const canonicalUrl = normalizeUrl(params.url);
+  // CRITICAL: Use SAME URL resolution as checkDuplicate to ensure hashes match
+  let canonicalUrl: string;
+  try {
+    canonicalUrl = await resolveFinalUrlWithGoogleNews(params.url, { timeoutMs: 3000 });
+  } catch {
+    canonicalUrl = normalizeUrl(params.url);
+  }
   const urlHash = sha1(canonicalUrl);
+
+  // ALSO store raw URL hash for exact match detection
+  const rawUrlHash = sha1(params.url);
   const strongFp = buildStrongFingerprint({
     title: params.title,
     url: canonicalUrl,
@@ -425,9 +456,9 @@ export function rememberDedup(params: {
   const now = new Date().toISOString();
 
   db.prepare(
-    `INSERT INTO dedupe_entries (canonical_url, url_hash, fingerprint, signature, topic_hash, region, source, title, created_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`
-  ).run(canonicalUrl, urlHash, strongFp, signature, topicHash, params.region ?? null, params.source ?? null, params.title ?? null, now);
+    `INSERT INTO dedupe_entries (canonical_url, url_hash, fingerprint, signature, topic_hash, region, source, title, created_at, raw_url_hash)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+  ).run(canonicalUrl, urlHash, strongFp, signature, topicHash, params.region ?? null, params.source ?? null, params.title ?? null, now, rawUrlHash);
 
   if (DEBUG) console.log(`[DEDUPE] Remembered: ${canonicalUrl.slice(0, 60)}`);
 }

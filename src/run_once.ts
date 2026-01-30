@@ -900,7 +900,7 @@ export async function runOnce(dryRun = true, armed = false, manualUrl?: string):
       });
 
       // Persist in 7d dedupe store
-      rememberDedup({
+      await rememberDedup({
         url: selected.url,
         title: selected.title,
         source: selected.source,
