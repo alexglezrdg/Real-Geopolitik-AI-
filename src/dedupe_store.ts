@@ -17,6 +17,7 @@ const MAX_SIG_ROWS = Number(process.env.DEDUPE_SIG_SCAN || 300);
 const DEBUG = (process.env.DEDUPE_DEBUG ?? "0") === "1";
 
 function init() {
+  // Create table WITHOUT raw_url_hash first (for compatibility)
   db.exec(`
     CREATE TABLE IF NOT EXISTS dedupe_entries (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -28,15 +29,13 @@ function init() {
       region TEXT,
       source TEXT,
       title TEXT,
-      created_at TEXT,
-      raw_url_hash TEXT
+      created_at TEXT
     );
     CREATE INDEX IF NOT EXISTS idx_dedupe_created_at ON dedupe_entries(created_at);
     CREATE INDEX IF NOT EXISTS idx_dedupe_fp ON dedupe_entries(fingerprint);
     CREATE INDEX IF NOT EXISTS idx_dedupe_url ON dedupe_entries(url_hash);
     CREATE INDEX IF NOT EXISTS idx_dedupe_canonical ON dedupe_entries(canonical_url);
     CREATE INDEX IF NOT EXISTS idx_dedupe_topic ON dedupe_entries(topic_hash);
-    CREATE INDEX IF NOT EXISTS idx_dedupe_raw_url ON dedupe_entries(raw_url_hash);
   `);
 
   // Migration: add raw_url_hash column if missing (for existing DBs)
@@ -44,6 +43,13 @@ function init() {
     db.exec(`ALTER TABLE dedupe_entries ADD COLUMN raw_url_hash TEXT`);
   } catch {
     // Column already exists, ignore
+  }
+
+  // Create index for raw_url_hash AFTER migration
+  try {
+    db.exec(`CREATE INDEX IF NOT EXISTS idx_dedupe_raw_url ON dedupe_entries(raw_url_hash)`);
+  } catch {
+    // Index might already exist, ignore
   }
 
   db.exec(`
