@@ -69,6 +69,7 @@ export async function searchArticles(params: {
   language?: string;
   sortBy?: "relevancy" | "popularity" | "publishedAt";
   pageSize?: number;
+  fromHoursAgo?: number;
 }): Promise<NewsAPIArticle[]> {
   if (!NEWSAPI_KEY) {
     console.warn("⚠️  NEWSAPI_KEY not set, skipping NewsAPI");
@@ -81,6 +82,12 @@ export async function searchArticles(params: {
   url.searchParams.set("language", params.language || "es");
   url.searchParams.set("sortBy", params.sortBy || "publishedAt");
   url.searchParams.set("pageSize", String(params.pageSize || 30));
+
+  // Only get articles from last N hours (default 24h)
+  const hoursAgo = params.fromHoursAgo || 24;
+  const fromDate = new Date(Date.now() - hoursAgo * 60 * 60 * 1000).toISOString();
+  url.searchParams.set("from", fromDate);
+
   url.searchParams.set("apiKey", NEWSAPI_KEY);
 
   try {
@@ -104,6 +111,19 @@ export async function searchArticles(params: {
 export async function fetchGeopoliticsNews(): Promise<NewsAPIArticle[]> {
   const allArticles: NewsAPIArticle[] = [];
   const seen = new Set<string>();
+  const now = Date.now();
+  const maxAgeHours = 24;
+
+  // Helper to check if article is fresh (last 24h)
+  const isFresh = (article: NewsAPIArticle): boolean => {
+    try {
+      const pubDate = new Date(article.publishedAt).getTime();
+      const ageHours = (now - pubDate) / (1000 * 60 * 60);
+      return ageHours <= maxAgeHours;
+    } catch {
+      return false; // Skip if can't parse date
+    }
+  };
 
   // Strategy: Use "everything" endpoint with geopolitics keywords
   // This is more efficient than multiple top-headlines calls
@@ -124,9 +144,13 @@ export async function fetchGeopoliticsNews(): Promise<NewsAPIArticle[]> {
         language: "es",
         sortBy: "publishedAt",
         pageSize: 25,
+        fromHoursAgo: 24,
       });
 
       for (const article of articles) {
+        // Skip old articles (double-check freshness)
+        if (!isFresh(article)) continue;
+
         // Dedupe by title similarity (NewsAPI sometimes returns duplicates)
         const titleNorm = article.title.toLowerCase().slice(0, 50);
         if (!seen.has(titleNorm)) {

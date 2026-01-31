@@ -331,7 +331,7 @@ function buildTemplateThreadNewsPack(selected: {
   const contextLine = (selected.snippet || selected.source || "Seguimiento").slice(0, 160);
 
   const t1 = `${hook}`;
-  const t2 = `${contextLine}\n\nMás detalles: ${selected.url}`;
+  const t2 = `${contextLine}`;
 
   return {
     mode: "thread2",
@@ -896,6 +896,11 @@ export async function runOnce(dryRun = true, armed = false, manualUrl?: string):
   
   // Build final tweet text with URL and hashtags
   texts[0] = buildFinalTweetText(texts[0], selected.url, finalHashtags);
+
+  // Strip URLs from second tweet to avoid duplicate preview cards
+  if (texts.length > 1) {
+    texts[1] = stripUrlsAndMoreDetails(texts[1]);
+  }
 
   // IMPORTANT: x.ts must enforce dryRun + (X_LIVE && --live) safeguards
   const postResult = await postThread(texts, dryRun, imagePath);
