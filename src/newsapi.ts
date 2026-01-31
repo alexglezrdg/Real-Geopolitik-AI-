@@ -128,22 +128,27 @@ export async function fetchGeopoliticsNews(): Promise<NewsAPIArticle[]> {
   // Strategy: Use "everything" endpoint with geopolitics keywords
   // This is more efficient than multiple top-headlines calls
 
+  // Simpler queries work better with NewsAPI free tier
   const queries = [
-    // Americas focus (75%)
-    "(Cuba OR Venezuela OR Mexico OR Colombia OR Brasil) AND (gobierno OR crisis OR sanciones OR diplomacia)",
-    // US geopolitics
-    "(Trump OR Biden OR Pentagon OR sanctions OR tariffs) AND (Latin America OR Cuba OR Venezuela OR Iran OR China)",
-    // World (25%)
-    "(NATO OR Russia OR Ukraine OR Iran OR Israel OR Gaza) AND (military OR sanctions OR diplomacy)",
+    // Americas - simpler terms
+    "Venezuela OR Cuba OR Mexico crisis",
+    // US foreign policy
+    "Trump tariffs OR Trump sanctions OR Trump military",
+    // World hotspots
+    "Iran nuclear OR Ukraine war OR Israel Gaza",
   ];
 
+  // Search in both Spanish and English for better coverage
+  const languages = ["es", "en"];
+
   for (const q of queries) {
+    for (const lang of languages) {
     try {
       const articles = await searchArticles({
         q,
-        language: "es",
+        language: lang,
         sortBy: "publishedAt",
-        pageSize: 25,
+        pageSize: 20,
         fromHoursAgo: 24,
       });
 
@@ -159,11 +164,12 @@ export async function fetchGeopoliticsNews(): Promise<NewsAPIArticle[]> {
         }
       }
 
-      console.log(`  ✓ NewsAPI query: ${articles.length} articles`);
+      console.log(`  ✓ NewsAPI query (${lang}): ${articles.length} articles`);
     } catch (err) {
       console.error(`  ✗ NewsAPI query failed: ${(err as Error).message}`);
     }
-  }
+    } // end language loop
+  } // end query loop
 
   // Also get US headlines (good for Trump/foreign policy news)
   try {
