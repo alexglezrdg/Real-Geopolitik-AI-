@@ -212,26 +212,35 @@ function extractKeyEntities(title: string): string[] {
     }
   }
   
-  // Key action verbs for geopolitics
+  // Key action verbs/topics for geopolitics
   const actionVerbs = [
     "bloqueo", "blockade", "embargo",
     "sanciones", "sanctions",
+    "aranceles", "tariffs", "tariff",  // Trade war keywords
+    "petroleo", "petróleo", "oil",      // Energy keywords
     "ataque", "attack",
     "invasion", "invade",
     "guerra", "war",
     "golpe", "coup",
     "elecciones", "elections",
     "protesta", "protest",
-    "crisis"
+    "crisis",
+    "transicion", "transición", "transition"
   ];
   
   for (const action of actionVerbs) {
     if (titleLower.includes(action)) {
-      // Normalize (bloqueo/blockade → blockade)
+      // Normalize (bloqueo/blockade → blockade, petróleo/oil → oil, aranceles/tariffs → tariffs)
       if (action.includes("bloqueo") || action.includes("blockade")) {
         if (!entities.includes("blockade")) entities.push("blockade");
       } else if (action.includes("sanciones") || action.includes("sanctions")) {
         if (!entities.includes("sanctions")) entities.push("sanctions");
+      } else if (action.includes("petroleo") || action.includes("petróleo") || action.includes("oil")) {
+        if (!entities.includes("oil")) entities.push("oil");
+      } else if (action.includes("aranceles") || action.includes("tariff")) {
+        if (!entities.includes("tariffs")) entities.push("tariffs");
+      } else if (action.includes("transicion") || action.includes("transición") || action.includes("transition")) {
+        if (!entities.includes("transition")) entities.push("transition");
       } else if (!entities.includes(action)) {
         entities.push(action);
       }

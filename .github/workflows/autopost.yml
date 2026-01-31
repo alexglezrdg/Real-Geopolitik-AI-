@@ -36,9 +36,9 @@ jobs:
           path: |
             data/posted.json
             data/bot.sqlite
-          key: post-history-v1
+          key: post-history-v2
           restore-keys: |
-            post-history-
+            post-history-v2-
 
       - name: Run autopost bot
         env:
@@ -70,4 +70,4 @@ jobs:
           path: |
             data/posted.json
             data/bot.sqlite
-          key: post-history-v1-${{ github.run_id }}
+          key: post-history-v2-${{ github.run_id }}
