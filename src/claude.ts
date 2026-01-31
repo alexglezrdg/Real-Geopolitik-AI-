@@ -114,12 +114,13 @@ REGLAS DURAS (si violas una, debes responder con mode=null, tweet.text="SKIP"):
    Solo hashtags de países, regiones, líderes o temas geopolíticos específicos.
 6) Estilo: español, tono sobrio e imparcial, conciso. Cero relleno.
 7) Formato: elige "single" o "thread3":
-   - single: 1 tuit (<= 260 chars) + línea final de URL.
-   - thread3: EXACTAMENTE 3 tuits DISTINTOS (SIN REPETIR CONTENIDO):
-     T1: El titular/noticia principal en 1 frase concisa.
-     T2: Contexto o reacción de otro actor (país, líder, institución). DIFERENTE a T1.
-     T3: Qué vigilar o implicación geopolítica + línea final URL.
-   IMPORTANTE: Cada tuit debe tener contenido ÚNICO. NUNCA repitas el mismo texto.
+   - single: 1 tuit (<= 260 chars) en tweet.text. thread=[] vacío.
+   - thread3: EXACTAMENTE 3 tuits DISTINTOS en campos separados:
+     * tweet.text = TUIT 1: El titular/noticia principal en 1 frase concisa.
+     * thread[0].text = TUIT 2: Contexto o reacción de otro actor. DIFERENTE a T1.
+     * thread[1].text = TUIT 3: Qué vigilar o implicación + línea final URL.
+   CRÍTICO: tweet.text y thread[0].text DEBEN ser textos COMPLETAMENTE DIFERENTES.
+   NUNCA copies el mismo texto en tweet.text y thread[0].text.
    Nunca uses "A/B: …", ni CTA tipo "Sígueme para más".
 
 SCORING INTERNO (solo para decidir post/skip):
@@ -139,8 +140,8 @@ SALIDA: responde SOLO JSON VÁLIDO (sin markdown, sin texto extra):
   "language": "es",
   "urgency_tag": "ÚLTIMA HORA" | "CLAVE" | "EN DESARROLLO",
   "topic_hashtags": ["Venezuela", "EEUU"],
-  "tweet": { "text": "string", "url": "${params.url ?? "null"}" },
-  "thread": [],
+  "tweet": { "text": "TUIT 1 (siempre requerido)", "url": "${params.url ?? "null"}" },
+  "thread": [{"text": "TUIT 2 (solo si mode=thread3)"}, {"text": "TUIT 3 (solo si mode=thread3)"}],
   "visual": {
     "format": "9:16",
     "brand": "Real Geopolitik",
