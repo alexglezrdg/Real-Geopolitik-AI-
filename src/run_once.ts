@@ -466,15 +466,36 @@ export async function runOnce(dryRun = true, armed = false, manualUrl?: string):
         return result;
       }
 
-      // Cuba-first fast path: use news_picker with Cuba priority to avoid repeats
+      // Cuba-first fast path: use news_picker with Cuba priority
+      // CRITICAL: Must check dedup database before selecting!
       const cubaKeywords = ["cuba", "havana", "habana", "bloqueo", "blockade", "embargo", "naval", "caribe", "venezuela", "caracas", "pdvsa", "maduro", "diaz-canel"];
       const pickerCandidate = await pickTopStory();
       if (pickerCandidate) {
         const txt = `${pickerCandidate.title} ${pickerCandidate.snippet}`.toLowerCase();
         const isCuba = cubaKeywords.some(kw => txt.includes(kw));
         if (isCuba) {
-          selected = pickerCandidate;
-          console.log("\n🎯 Cuba-first pick from news_picker (avoids repeats)");
+          // CHECK DEDUP before selecting (this was missing and caused 10x duplicates!)
+          const dedupe = await dedupeCheck({
+            url: pickerCandidate.url || pickerCandidate.link,
+            title: pickerCandidate.title,
+            region: pickerCandidate.region || pickerCandidate.region_bucket,
+            snippet: pickerCandidate.snippet || "",
+            source: pickerCandidate.source || ""
+          });
+
+          if (dedupe.isDuplicate) {
+            console.log(`\n🎯 Cuba-first pick BLOCKED by dedup: ${dedupe.reason}`);
+          } else {
+            // Also check topic cooldown
+            const topicHash = buildTopicHash(pickerCandidate.title);
+            const onCooldown = await isTopicOnCooldown(topicHash);
+            if (onCooldown) {
+              console.log(`\n🎯 Cuba-first pick BLOCKED by topic cooldown`);
+            } else {
+              selected = pickerCandidate;
+              console.log("\n🎯 Cuba-first pick from news_picker (passed dedup check)");
+            }
+          }
         }
       }
 
