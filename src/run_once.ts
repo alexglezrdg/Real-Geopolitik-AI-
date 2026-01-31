@@ -330,17 +330,16 @@ function buildTemplateThreadNewsPack(selected: {
   const hook = `${selected.title}`;
   const contextLine = (selected.snippet || selected.source || "Seguimiento").slice(0, 160);
 
-  const t1 = `${hook}\nEsto puede mover el tablero en 72h.`;
-  const t2 = `Contexto: ${contextLine}\n• Seguridad: impacto regional\n• Economía: presión/sanciones\n• Política: alianzas en juego`;
-  const t3 = `Vigilar: si actor A confirma, escalada; si actor B modera, negociación.\nA/B: ¿Escalada o negociación?\nSigue @realgeopolitik_ para más.`;
+  const t1 = `${hook}`;
+  const t2 = `${contextLine}\n\nMás detalles: ${selected.url}`;
 
   return {
-    mode: "thread3",
+    mode: "thread2",
     language: "es",
     urgency_tag: "CLAVE",
     topic_hashtags: [],
     tweet: { text: t1, url: selected.url },
-    thread: [{ text: t2 }, { text: t3 }],
+    thread: [{ text: t2 }],
     visual: {
       format: "9:16",
       brand: "Real Geopolitik",
@@ -371,7 +370,7 @@ function extractTweetsFromPack(pack: NewsPack): string[] {
     texts.push(pack.tweet.text);
   }
   
-  if (pack.mode === "thread3" && pack.thread) {
+  if (pack.mode === "thread2" && pack.thread) {
     texts.push(...pack.thread.map((t) => t.text).filter(Boolean));
   }
   

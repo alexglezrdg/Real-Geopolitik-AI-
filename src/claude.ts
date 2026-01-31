@@ -24,7 +24,7 @@ export interface VisualMetadata {
 }
 
 export interface NewsPack {
-  mode: "single" | "thread3";
+  mode: "single" | "thread2";
   language: "es";
   urgency_tag: "ÚLTIMA HORA" | "CLAVE" | "EN DESARROLLO";
   topic_hashtags: string[]; // 1-2 max
@@ -113,14 +113,12 @@ REGLAS DURAS (si violas una, debes responder con mode=null, tweet.text="SKIP"):
    NUNCA uses el nombre del medio/fuente como hashtag (ej: NO #France24, NO #Reuters, NO #DW, NO #RunRun, NO #ElPais).
    Solo hashtags de países, regiones, líderes o temas geopolíticos específicos.
 6) Estilo: español, tono sobrio e imparcial, conciso. Cero relleno.
-7) Formato: elige "single" o "thread3":
+7) Formato: elige "single" o "thread2":
    - single: 1 tuit (<= 260 chars) en tweet.text. thread=[] vacío.
-   - thread3: EXACTAMENTE 3 tuits DISTINTOS en campos separados:
-     * tweet.text = TUIT 1: El titular/noticia principal en 1 frase concisa.
-     * thread[0].text = TUIT 2: Contexto o reacción de otro actor. DIFERENTE a T1.
-     * thread[1].text = TUIT 3: Qué vigilar o implicación + línea final URL.
+   - thread2: EXACTAMENTE 2 tuits DISTINTOS:
+     * tweet.text = TUIT 1: El titular/noticia principal + contexto clave.
+     * thread[0].text = TUIT 2: Implicación geopolítica + línea final URL.
    CRÍTICO: tweet.text y thread[0].text DEBEN ser textos COMPLETAMENTE DIFERENTES.
-   NUNCA copies el mismo texto en tweet.text y thread[0].text.
    Nunca uses "A/B: …", ni CTA tipo "Sígueme para más".
 
 SCORING INTERNO (solo para decidir post/skip):
@@ -136,12 +134,12 @@ METADATOS VISUALES (deben venir SIEMPRE):
 
 SALIDA: responde SOLO JSON VÁLIDO (sin markdown, sin texto extra):
 {
-  "mode": "single" | "thread3" | null,
+  "mode": "single" | "thread2" | null,
   "language": "es",
   "urgency_tag": "ÚLTIMA HORA" | "CLAVE" | "EN DESARROLLO",
   "topic_hashtags": ["Venezuela", "EEUU"],
   "tweet": { "text": "TUIT 1 (siempre requerido)", "url": "${params.url ?? "null"}" },
-  "thread": [{"text": "TUIT 2 (solo si mode=thread3)"}, {"text": "TUIT 3 (solo si mode=thread3)"}],
+  "thread": [{"text": "TUIT 2 (solo si mode=thread2)"}],
   "visual": {
     "format": "9:16",
     "brand": "Real Geopolitik",
@@ -297,12 +295,12 @@ SOLO JSON entre JSON_START/JSON_END. NO inventes datos.`;
     }
 
     // Validate mode
-    if (!["single", "thread3"].includes(output.mode)) {
+    if (!["single", "thread2"].includes(output.mode)) {
       output.mode = "single";
     }
 
     // Validate thread count (max 3 total including tweet 1)
-    if (output.mode === "thread3" && output.thread.length > 2) {
+    if (output.mode === "thread2" && output.thread.length > 2) {
       output.thread = output.thread.slice(0, 2);
     }
 
@@ -380,7 +378,7 @@ REGLAS CRÍTICAS
 - IMPORTANTE: Si la fuente NO confirma explícitamente "bloqueo naval", usa CONDICIONAL: "evalúa", "considera", "según reportes", "plantea".
 - Nunca afirmar como hecho sin fuente verificable.
 - Default: mode="single" (1 tuit).
-- Solo mode="thread3" si hay 2+ actores o contexto crítico.
+- Solo mode="thread2" si hay 2+ actores o contexto crítico.
 - Máx 270 caracteres por tuit.
 - Hashtags 1-2.
 
@@ -400,7 +398,7 @@ METADATOS VISUALES
 
 OUTPUT JSON EXACTO
 {
-  "mode": "single|thread3",
+  "mode": "single|thread2",
   "language": "es",
   "urgency_tag": "${explicitBlockade ? "ÚLTIMA HORA" : "EN DESARROLLO"}",
   "topic_hashtags": ["Cuba", "EEUU"],
@@ -522,11 +520,11 @@ Genera el JSON ahora.`;
       output.tweet.text = safeTrim(output.tweet.text, 270);
     }
 
-    if (!["single", "thread3"].includes(output.mode)) {
+    if (!["single", "thread2"].includes(output.mode)) {
       output.mode = "single";
     }
 
-    if (output.mode === "thread3" && output.thread.length > 2) {
+    if (output.mode === "thread2" && output.thread.length > 2) {
       output.thread = output.thread.slice(0, 2);
     }
 

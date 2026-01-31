@@ -212,19 +212,32 @@ function extractKeyEntities(title: string): string[] {
     }
   }
   
+  // Key political figures (helps catch same story with different angles)
+  const keyFigures = [
+    "trump", "biden", "sheinbaum", "maduro", "putin", "xi", "zelensky",
+    "netanyahu", "khamenei", "diaz-canel", "milei", "lula", "petro"
+  ];
+
+  for (const figure of keyFigures) {
+    if (titleLower.includes(figure) && !entities.includes(figure)) {
+      entities.push(figure);
+    }
+  }
+
   // Key action verbs/topics for geopolitics
   const actionVerbs = [
     "bloqueo", "blockade", "embargo",
     "sanciones", "sanctions",
     "aranceles", "tariffs", "tariff",  // Trade war keywords
     "petroleo", "petróleo", "oil",      // Energy keywords
+    "amenaza", "amenazas", "threat", "threatens",  // Threat keywords
+    "crisis", "humanitaria", "humanitarian",
     "ataque", "attack",
     "invasion", "invade",
     "guerra", "war",
     "golpe", "coup",
     "elecciones", "elections",
     "protesta", "protest",
-    "crisis",
     "transicion", "transición", "transition"
   ];
   
@@ -241,6 +254,10 @@ function extractKeyEntities(title: string): string[] {
         if (!entities.includes("tariffs")) entities.push("tariffs");
       } else if (action.includes("transicion") || action.includes("transición") || action.includes("transition")) {
         if (!entities.includes("transition")) entities.push("transition");
+      } else if (action.includes("amenaza") || action.includes("threat")) {
+        if (!entities.includes("threat")) entities.push("threat");
+      } else if (action.includes("crisis") || action.includes("humanitaria") || action.includes("humanitarian")) {
+        if (!entities.includes("crisis")) entities.push("crisis");
       } else if (!entities.includes(action)) {
         entities.push(action);
       }
@@ -495,7 +512,7 @@ export function cleanupDedup() {
  * Use case: "Cuba + USA + embargo" story evolves with new reporting → don't post again within 48h
  */
 
-const TOPIC_COOLDOWN_HOURS = Number(process.env.TOPIC_COOLDOWN_HOURS || 48);
+const TOPIC_COOLDOWN_HOURS = Number(process.env.TOPIC_COOLDOWN_HOURS || 72);
 
 /**
  * Check if topic has been posted within cooldown period
