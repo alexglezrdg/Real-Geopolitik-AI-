@@ -1,4 +1,5 @@
 import Parser from "rss-parser";
+import { fetchGeopoliticsNews, convertToFeedItem } from "./newsapi.js";
 
 export type FeedItem = {
   source: string;
@@ -6,6 +7,7 @@ export type FeedItem = {
   link: string;
   isoDate?: string;
   snippet?: string;
+  imageUrl?: string;
 };
 
 const parser = new Parser({
@@ -51,26 +53,56 @@ function getFeeds() {
 export async function fetchAllFeeds(): Promise<FeedItem[]> {
   const feeds = getFeeds();
   const items: FeedItem[] = [];
+  const seenTitles = new Set<string>();
 
-  for (const f of feeds) {
+  // PRIMARY SOURCE: NewsAPI (better deduplication, clustered stories)
+  if (process.env.NEWSAPI_KEY) {
+    console.log("\n📰 Fetching from NewsAPI (primary source)...");
     try {
-      const feed = await parser.parseURL(f.url);
-      for (const it of feed.items ?? []) {
-        const link = (it.link || "").trim();
-        const title = (it.title || "").trim();
-        if (!link || !title) continue;
-
-        items.push({
-          source: f.name,
-          title,
-          link,
-          isoDate: (it.isoDate || it.pubDate || undefined) as any,
-          snippet: (it.contentSnippet || it.content || "").toString().slice(0, 600)
-        });
+      const newsApiArticles = await fetchGeopoliticsNews();
+      for (const article of newsApiArticles) {
+        const item = convertToFeedItem(article);
+        const titleNorm = item.title.toLowerCase().slice(0, 60);
+        if (!seenTitles.has(titleNorm)) {
+          seenTitles.add(titleNorm);
+          items.push(item);
+        }
       }
-      console.log(`  ✓ ${f.name}: ${(feed.items?.length ?? 0)} items`);
-    } catch (e: any) {
-      console.log(`  ✗ ${f.name}: ${e?.message ?? String(e)}`);
+      console.log(`  ✓ NewsAPI total: ${items.length} unique articles\n`);
+    } catch (err) {
+      console.error(`  ✗ NewsAPI failed: ${(err as Error).message}`);
+    }
+  }
+
+  // FALLBACK: RSS feeds (only if NewsAPI didn't return enough)
+  const minArticles = 50;
+  if (items.length < minArticles) {
+    console.log("📡 Fetching from RSS feeds (supplementary)...");
+    for (const f of feeds) {
+      try {
+        const feed = await parser.parseURL(f.url);
+        for (const it of feed.items ?? []) {
+          const link = (it.link || "").trim();
+          const title = (it.title || "").trim();
+          if (!link || !title) continue;
+
+          // Skip if we already have similar title from NewsAPI
+          const titleNorm = title.toLowerCase().slice(0, 60);
+          if (seenTitles.has(titleNorm)) continue;
+          seenTitles.add(titleNorm);
+
+          items.push({
+            source: f.name,
+            title,
+            link,
+            isoDate: (it.isoDate || it.pubDate || undefined) as any,
+            snippet: (it.contentSnippet || it.content || "").toString().slice(0, 600)
+          });
+        }
+        console.log(`  ✓ ${f.name}: ${(feed.items?.length ?? 0)} items`);
+      } catch (e: any) {
+        console.log(`  ✗ ${f.name}: ${e?.message ?? String(e)}`);
+      }
     }
   }
 
