@@ -179,14 +179,19 @@ export async function fetchGeopoliticsNews(): Promise<NewsAPIArticle[]> {
       pageSize: 20,
     });
 
+    let freshCount = 0;
     for (const article of usHeadlines) {
+      // APPLY FRESHNESS CHECK to headlines too
+      if (!isFresh(article)) continue;
+
       const titleNorm = article.title.toLowerCase().slice(0, 50);
       if (!seen.has(titleNorm)) {
         seen.add(titleNorm);
         allArticles.push(article);
+        freshCount++;
       }
     }
-    console.log(`  ✓ NewsAPI US headlines: ${usHeadlines.length} articles`);
+    console.log(`  ✓ NewsAPI US headlines: ${freshCount} fresh (of ${usHeadlines.length})`);
   } catch (err) {
     console.error(`  ✗ NewsAPI US headlines failed: ${(err as Error).message}`);
   }

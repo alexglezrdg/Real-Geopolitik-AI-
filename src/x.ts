@@ -61,7 +61,7 @@ async function xRequest(method: "GET" | "POST", url: string, body?: any) {
     body: body ? JSON.stringify(body) : undefined,
   });
 
-  const json = await res.json().catch(() => ({}));
+  const json = (await res.json().catch(() => ({}))) as Record<string, any>;
   if (!res.ok) {
     throw new Error(`X API ${res.status}: ${JSON.stringify(json).slice(0, 400)}`);
   }
@@ -100,18 +100,19 @@ async function uploadMedia(imagePath: string): Promise<string | null> {
       body: formBody,
     });
 
-    const json = await res.json().catch(() => ({}));
+    const json = (await res.json().catch(() => ({}))) as { media_id_string?: string };
 
     if (!res.ok) {
       console.error(`[X] Media upload failed ${res.status}: ${JSON.stringify(json).slice(0, 300)}`);
       return null;
     }
 
-    const mediaId = json?.media_id_string;
+    const mediaId = json.media_id_string;
     if (mediaId) {
       console.log(`[X] Media uploaded successfully: ${mediaId}`);
+      return mediaId;
     }
-    return mediaId;
+    return null;
   } catch (err) {
     console.error(`[X] Media upload error: ${(err as Error).message}`);
     return null;

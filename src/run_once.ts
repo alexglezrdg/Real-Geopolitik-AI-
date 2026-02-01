@@ -1,20 +1,14 @@
 import "dotenv/config";
-import * as fs from "fs";
-import * as path from "path";
 import { fetchAllFeeds } from "./rss.js";
-import { pickTopStory, detectUrgencyTag } from "./news_picker.js";
+import { pickTopStory } from "./news_picker.js";
 import { curateCandidates, formatCuratorLog, type FeedItem } from "./curator.js";
 import { refineCandidatesWithLLM, canonicalizeUrl, type LLMCurationResult } from "./curator-llm.js";
 import { generateThreadWithClaude, type NewsPack } from "./claude.js";
-import { generateNewsImage } from "./openai_image.js";
 import { postThread, testConnection } from "./x.js";
-import { isAlreadyPosted, markPosted, getTodayPostCount } from "./db.js";
-import { recordPosted, canonicalizeUrl as phCanonicalizeUrl } from "./post_history.js";
+import { markPosted, getTodayPostCount } from "./db.js";
+import { recordPosted } from "./post_history.js";
 import { checkDuplicate as dedupeCheck, rememberDedup, isTopicOnCooldown, recordTopicPosted, buildTopicHash } from "./dedupe_store.js";
 import { geoGate, type RegionBucket } from "./geo_gate.js";
-import { decideImageMode, extractEntities } from "./image_mode.js";
-import { composeImage } from "./image_composer.js";
-import { writeMaestroPost, type MaestroInput } from "./post_writer_maestro.js";
 import { acquireLock, releaseLock } from "./process_lock.js";
 
 const MAX_POSTS_PER_DAY = parseInt(process.env.MAX_POSTS_PER_DAY || "30", 10);
@@ -320,7 +314,7 @@ type RunResult = {
   errors: string[];
 };
 
-function buildTemplateThreadNewsPack(selected: {
+function buildTemplateSingleNewsPack(selected: {
   title: string;
   snippet?: string;
   source?: string;
@@ -328,25 +322,21 @@ function buildTemplateThreadNewsPack(selected: {
 }): NewsPack {
   const todayIso = new Date().toISOString().slice(0, 10);
   const hook = `${selected.title}`;
-  const contextLine = (selected.snippet || selected.source || "Seguimiento").slice(0, 160);
-
-  const t1 = `${hook}`;
-  const t2 = `${contextLine}`;
 
   return {
-    mode: "thread2",
+    mode: "single",
     language: "es",
     urgency_tag: "CLAVE",
     topic_hashtags: [],
-    tweet: { text: t1, url: selected.url },
-    thread: [{ text: t2 }],
+    tweet: { text: hook, url: selected.url },
+    thread: [],  // Always empty - single posts only
     visual: {
       format: "9:16",
       brand: "Real Geopolitik",
       palette: { bg: "#000000", text: "#FCFCFA", accent: "#E10600" },
       header: "CLAVE",
       headline: trimToTwitter(selected.title.toUpperCase(), 90),
-      subheadline: trimToTwitter(contextLine, 110),
+      subheadline: trimToTwitter(selected.snippet || selected.source || "", 110),
       source_line: `Fuente: ${selected.source ?? "N/A"}`,
       date_line: `Fecha: ${todayIso}`,
       image_brief: "Noticia geopolítica, alto contraste, sin logos",
@@ -362,19 +352,9 @@ function buildTemplateThreadNewsPack(selected: {
   };
 }
 
-// Extract texts from NewsPack
-function extractTweetsFromPack(pack: NewsPack): string[] {
-  const texts: string[] = [];
-  
-  if (pack.tweet?.text) {
-    texts.push(pack.tweet.text);
-  }
-  
-  if (pack.mode === "thread2" && pack.thread) {
-    texts.push(...pack.thread.map((t) => t.text).filter(Boolean));
-  }
-  
-  return texts;
+// Extract single tweet text from NewsPack
+function extractTweetFromPack(pack: NewsPack): string {
+  return pack.tweet?.text || "";
 }
 
 // Format visual metadata for logging
@@ -475,9 +455,9 @@ export async function runOnce(dryRun = true, armed = false, manualUrl?: string):
         if (isCuba) {
           // CHECK DEDUP before selecting (this was missing and caused 10x duplicates!)
           const dedupe = await dedupeCheck({
-            url: pickerCandidate.url || pickerCandidate.link,
+            url: pickerCandidate.url,
             title: pickerCandidate.title,
-            region: pickerCandidate.region || pickerCandidate.region_bucket,
+            region: "GLOBAL",  // CandidateStory doesn't have region, default to GLOBAL
             snippet: pickerCandidate.snippet || "",
             source: pickerCandidate.source || ""
           });
@@ -694,6 +674,20 @@ export async function runOnce(dryRun = true, armed = false, manualUrl?: string):
   console.log(`   Source: ${selected.source}`);
   console.log(`   URL: ${selected.url}`);
 
+  // FINAL FRESHNESS CHECK: Safety net to prevent posting old news
+  const MAX_AGE_HOURS = 12;
+  const pubDate = selected.publishedAt ? new Date(selected.publishedAt).getTime() : 0;
+  const ageHours = pubDate ? (Date.now() - pubDate) / (1000 * 60 * 60) : 999;
+
+  if (ageHours > MAX_AGE_HOURS) {
+    console.log(`\n⚠️  SKIP: Article too old (${ageHours.toFixed(1)}h > ${MAX_AGE_HOURS}h limit)`);
+    console.log(`   Published: ${selected.publishedAt || "unknown"}`);
+    result.errors.push(`Article too old: ${ageHours.toFixed(1)}h`);
+    result.success = true;
+    return result;
+  }
+  console.log(`   Age: ${ageHours.toFixed(1)}h (limit: ${MAX_AGE_HOURS}h) ✓`);
+
   // Region fallback to avoid undefined in dedupe store
   if (!(selected as any).region) {
     (selected as any).region = "GLOBAL";
@@ -714,10 +708,10 @@ export async function runOnce(dryRun = true, armed = false, manualUrl?: string):
   let newsPack: NewsPack;
   try {
     if (!useLLM) {
-      console.log(`\n⚡ Using deterministic thread template (score=${scoreForGen} < ${llmThreshold} OR no hard-geo)`);
-      newsPack = buildTemplateThreadNewsPack(selected);
+      console.log(`\n⚡ Using deterministic single template (score=${scoreForGen} < ${llmThreshold} OR no hard-geo)`);
+      newsPack = buildTemplateSingleNewsPack(selected);
     } else {
-      console.log(`\n🧠 Using LLM thread generation (score=${scoreForGen} >= ${llmThreshold} AND has hard-geo)`);
+      console.log(`\n🧠 Using LLM single post generation (score=${scoreForGen} >= ${llmThreshold} AND has hard-geo)`);
       newsPack = await generateThreadWithClaude({
         source: selected.source,
         title: selected.title,
@@ -741,98 +735,16 @@ export async function runOnce(dryRun = true, armed = false, manualUrl?: string):
     return result;
   }
 
-  const texts = extractTweetsFromPack(newsPack);
+  const tweetText = extractTweetFromPack(newsPack);
 
-  console.log("\n📝 Thread preview:");
-  texts.forEach((t, i) => console.log(`   ${i + 1}. ${t.slice(0, 120)}${t.length > 120 ? "…" : ""}`));
+  console.log("\n📝 Tweet preview:");
+  console.log(`   ${tweetText.slice(0, 120)}${tweetText.length > 120 ? "…" : ""}`);
 
   console.log(`\n🧩 Visual meta: ${formatVisualMeta(newsPack)}`);
 
-  // Generate image if enabled (HYBRID MODE: DALL·E + optional portrait composition)
-  let imagePath: string | null = null;
-  const imageRequired = process.env.IMAGE_LIVE === "1";
-  
-  if (imageRequired) {
-    console.log(`\n🎨 Generating image...`);
-    
-    // Step 1: Always generate DALL·E image (as before)
-    const dalleImagePath = await generateNewsImage(newsPack.visual, selected.url);
-    
-    if (!dalleImagePath) {
-      console.log(`   ❌ Image generation FAILED (IMAGE_LIVE=1 requires image)`);
-      console.log(`   [IMAGE] generation_failed=true`);
-      result.errors.push("Image generation failed (IMAGE_LIVE=1 requires image)");
-      result.success = true;
-      return result;
-    }
-
-    // Step 2: Optional forced portrait (manual override)
-    const forcedPortraitPath = (process.env.FORCE_PORTRAIT_PATH ?? "").trim();
-
-    if (forcedPortraitPath) {
-      if (fs.existsSync(forcedPortraitPath)) {
-        console.log(`[IMG] forced portrait detected: ${path.basename(forcedPortraitPath)}`);
-        const composeResult = await composeImage({
-          dalleImagePath,
-          portraitPath: forcedPortraitPath,
-          badgeText: newsPack.visual.header,
-          outputFilename: path.basename(dalleImagePath).replace(".png", ".composed.png"),
-        });
-
-        if (composeResult.success && composeResult.finalPath) {
-          imagePath = composeResult.finalPath;
-          console.log(`   ✅ Image ready (COMPOSED - forced portrait): ${imagePath}`);
-          console.log(`[IMG] output: ${imagePath}`);
-        } else {
-          console.warn(`   ⚠️  Forced composition failed: ${composeResult.error}`);
-          console.log(`   ✅ Fallback to DALL·E FULL: ${dalleImagePath}`);
-          imagePath = dalleImagePath;
-        }
-      } else {
-        console.warn(`   ⚠️  FORCE_PORTRAIT_PATH does not exist: ${forcedPortraitPath}`);
-      }
-    }
-
-    // Step 3: Decide mode (DALL·E FULL vs COMPOSED) if not forced
-    if (!imagePath) {
-      // Extract entities from tags, title, AND snippet for better detection
-      const entities = extractEntities(
-        newsPack.topic_hashtags || [], 
-        selected.title,
-        selected.snippet // ← Added snippet for better Trump/Lula detection
-      );
-      const modeDecision = decideImageMode(entities);
-      
-      console.log(`[IMG] mode: ${modeDecision.mode}`);
-      console.log(`[IMG] entity: ${modeDecision.entity || "NONE"}`);
-      console.log(`[IMG] portrait: ${modeDecision.portraitPath ? path.basename(modeDecision.portraitPath) : "none"}`);
-      console.log(`[IMG] reason: ${modeDecision.reason}`);
-
-      if (modeDecision.mode === "DALLE_FULL") {
-        imagePath = dalleImagePath;
-        console.log(`   ✅ Image ready (DALL·E FULL): ${imagePath}`);
-      } else if (modeDecision.mode === "COMPOSED" && modeDecision.portraitPath) {
-        const composeResult = await composeImage({
-          dalleImagePath,
-          portraitPath: modeDecision.portraitPath,
-          badgeText: newsPack.visual.header,
-          outputFilename: path.basename(dalleImagePath).replace(".png", ".composed.png"),
-        });
-
-        if (composeResult.success && composeResult.finalPath) {
-          imagePath = composeResult.finalPath;
-          console.log(`   ✅ Image ready (COMPOSED): ${imagePath}`);
-          console.log(`[IMG] output: ${imagePath}`);
-        } else {
-          console.warn(`   ⚠️  Composition failed: ${composeResult.error}`);
-          console.log(`   ✅ Fallback to DALL·E FULL: ${dalleImagePath}`);
-          imagePath = dalleImagePath;
-        }
-      }
-    }
-
-    console.log(`   [IMAGE] generated=${imagePath}`);
-  }
+  // IMAGE DISABLED: Rely on link preview cards from URL instead
+  // (Image upload was failing with 401 on X API free tier)
+  console.log(`\n🖼️  Image: Using link preview card (no upload)`);
 
   // ENFORCE HASHTAGS: Ensure 1-2 hashtags at end of tweet (exclude domain/source-based tags)
   const ensureHashtags = (
@@ -843,7 +755,7 @@ export async function runOnce(dryRun = true, armed = false, manualUrl?: string):
   ): string[] => {
     const allHashtags: string[] = [];
     const stopTags = buildSourceStopTags(source, url);
-    
+
     // 1. Try hashtags from LLM (NewsPack)
     if (packHashtags && packHashtags.length > 0) {
       for (const tag of packHashtags) {
@@ -853,7 +765,7 @@ export async function runOnce(dryRun = true, armed = false, manualUrl?: string):
         }
       }
     }
-    
+
     // 2. If still empty, derive from story keywords (NOT from URL/source domain)
     if (allHashtags.length === 0) {
       const storyText = `${selected.title}`.toLowerCase(); // Title only, NOT source
@@ -867,43 +779,38 @@ export async function runOnce(dryRun = true, armed = false, manualUrl?: string):
         [/israel|gaza|hamas/, "Israel"],
         [/bloqueo|naval|embargo/, "Geopolitica"],
       ];
-      
+
       for (const [regex, tag] of rules) {
         if (regex.test(storyText)) {
           allHashtags.push(tag);
         }
       }
     }
-    
+
     // 3. Deduplicate and limit to 2
     const finalTags = [...new Set(allHashtags)]
       .map(normalizeTag)
       .filter(t => t && !stopTags.has(t.toLowerCase()))
       .slice(0, 2);
-    
+
     // 4. Fallback if still empty
     if (finalTags.length === 0) {
       finalTags.push("Geopolitica");
     }
-    
+
     console.log(`   [TAGS] final_hashtags=[${finalTags.join(",")}]`);
     return finalTags;
   };
-  
-  // Apply hashtag enforcement to first tweet
-  // Returns array of final hashtags
-  const finalHashtags = ensureHashtags(texts[0], newsPack.topic_hashtags, selected.source, selected.url);
-  
-  // Build final tweet text with URL and hashtags
-  texts[0] = buildFinalTweetText(texts[0], selected.url, finalHashtags);
 
-  // Strip URLs from second tweet to avoid duplicate preview cards
-  if (texts.length > 1) {
-    texts[1] = stripUrlsAndMoreDetails(texts[1]);
-  }
+  // Apply hashtag enforcement
+  const finalHashtags = ensureHashtags(tweetText, newsPack.topic_hashtags, selected.source, selected.url);
+
+  // Build final tweet text with URL and hashtags
+  const finalTweet = buildFinalTweetText(tweetText, selected.url, finalHashtags);
 
   // IMPORTANT: x.ts must enforce dryRun + (X_LIVE && --live) safeguards
-  const postResult = await postThread(texts, dryRun, imagePath);
+  // Post single tweet (no image - rely on link preview card)
+  const postResult = await postThread([finalTweet], dryRun, null);
 
   if (postResult.success) {
     const actuallyPosted = !["safe-mode", "dry-run"].includes(postResult.tweetIds?.[0] ?? "");
@@ -914,7 +821,7 @@ export async function runOnce(dryRun = true, armed = false, manualUrl?: string):
         source: selected.source,
         tweetId: postResult.tweetIds[0],
       });
-      
+
       // Record in persistent post history (anti-duplicate tracking)
       // ONLY after X post succeeds
       await recordPosted({
@@ -932,19 +839,17 @@ export async function runOnce(dryRun = true, armed = false, manualUrl?: string):
         region: selected.reasonPicked,
         snippet: selected.snippet
       });
-      
+
       // Record topic in 72h cooldown store
       recordTopicPosted({
         topic_hash: buildTopicHash(selected.title),
         title: selected.title,
         url: selected.url
       });
-      
-      console.log(`\n✅ Thread posted successfully!`);
+
+      console.log(`\n✅ Tweet posted successfully!`);
       console.log(`   View: https://x.com/i/status/${postResult.tweetIds[0]}`);
-      if (imagePath) {
-        console.log(`   [MEDIA] posted_with_image=true`);
-      }
+      console.log(`   [LINK_PREVIEW] Image shown via article link preview card`);
     } else {
       console.log(`\n✅ Safe run completed (no posting).`);
     }

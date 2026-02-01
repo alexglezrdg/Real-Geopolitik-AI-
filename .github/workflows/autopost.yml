@@ -31,6 +31,11 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
+      - name: Create data directories
+        run: |
+          mkdir -p data
+          mkdir -p out
+
       - name: Restore post history cache
         uses: actions/cache/restore@v4
         with:
@@ -41,6 +46,19 @@ jobs:
           key: post-history-v3
           restore-keys: |
             post-history-v3-
+
+      - name: Verify cache restored
+        run: |
+          echo "=== Cache verification ==="
+          ls -la data/ || echo "data/ not found"
+          ls -la out/ || echo "out/ not found"
+          if [ -f data/bot.sqlite ]; then
+            echo "✓ bot.sqlite exists ($(stat -f%z data/bot.sqlite 2>/dev/null || stat -c%s data/bot.sqlite) bytes)"
+            sqlite3 data/bot.sqlite "SELECT COUNT(*) as dedupe_count FROM dedupe_entries;" 2>/dev/null || echo "No dedupe_entries table"
+            sqlite3 data/bot.sqlite "SELECT COUNT(*) as topic_count FROM topic_cooldown;" 2>/dev/null || echo "No topic_cooldown table"
+          else
+            echo "✗ bot.sqlite NOT found - dedup will start fresh"
+          fi
 
       - name: Run autopost bot
         env:

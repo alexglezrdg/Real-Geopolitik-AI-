@@ -24,12 +24,12 @@ export interface VisualMetadata {
 }
 
 export interface NewsPack {
-  mode: "single" | "thread2";
+  mode: "single";  // Only single posts now (no threads)
   language: "es";
   urgency_tag: "ÚLTIMA HORA" | "CLAVE" | "EN DESARROLLO";
   topic_hashtags: string[]; // 1-2 max
   tweet: { text: string; url: string };
-  thread: ThreadTweet[];
+  thread: ThreadTweet[];  // Always empty now
   visual: VisualMetadata;
 }
 
@@ -109,13 +109,8 @@ REGLAS DURAS (si violas una, debes responder con mode=null, tweet.text="SKIP"):
 4) URL y hashtags: Se agregan AUTOMÁTICAMENTE al primer tuit en código.
    NO incluyas "Más detalles:" ni URL ni hashtags en tu respuesta JSON.
 5) Estilo: español, tono sobrio e imparcial, conciso. Cero relleno.
-6) Formato: elige "single" o "thread2":
-   - single: 1 tuit (<= 260 chars) en tweet.text. thread=[] vacío.
-   - thread2: EXACTAMENTE 2 tuits DISTINTOS:
-     * tweet.text = TUIT 1: El titular/noticia principal + contexto clave. (URL se agrega automáticamente)
-     * thread[0].text = TUIT 2: Implicación geopolítica o análisis. SIN URL, SIN "Más detalles".
-   CRÍTICO: tweet.text y thread[0].text DEBEN ser textos COMPLETAMENTE DIFERENTES.
-   CRÍTICO: thread[0].text NO debe contener ningún link ni "Más detalles".
+6) Formato: SIEMPRE "single" (1 solo tuit, <= 260 chars). thread=[] vacío.
+   La URL se agrega automáticamente al final, no la incluyas en tweet.text.
    Nunca uses "A/B: …", ni CTA tipo "Sígueme para más".
 
 SCORING INTERNO (solo para decidir post/skip):
@@ -131,12 +126,12 @@ METADATOS VISUALES (deben venir SIEMPRE):
 
 SALIDA: responde SOLO JSON VÁLIDO (sin markdown, sin texto extra):
 {
-  "mode": "single" | "thread2" | null,
+  "mode": "single" | null,
   "language": "es",
   "urgency_tag": "ÚLTIMA HORA" | "CLAVE" | "EN DESARROLLO",
   "topic_hashtags": ["Venezuela", "EEUU"],
-  "tweet": { "text": "TUIT 1 (siempre requerido)", "url": "${params.url ?? "null"}" },
-  "thread": [{"text": "TUIT 2 (solo si mode=thread2)"}],
+  "tweet": { "text": "TUIT ÚNICO (max 260 chars, sin URL)", "url": "${params.url ?? "null"}" },
+  "thread": [],
   "visual": {
     "format": "9:16",
     "brand": "Real Geopolitik",
@@ -162,8 +157,8 @@ CHECK FINAL antes de responder:
 - ¿Hay geopolítica explícita? Si no: mode=null, tweet.text="SKIP".
 - ¿Hay algún claim no sustentado por title/snippet? Si sí: mode=null, tweet.text="SKIP" o reescribe sin ese claim.
 - ¿Hay placeholders o frases genéricas? Si sí: reescribe con hechos concretos del title/snippet.
-- ¿Hay más de una URL o "Más detalles" repetido? Si sí: reescribe (SOLO 1 URL al final).
 - ¿tweet.text contiene URL? Si sí: elimínala (se agrega en código).
+- ¿thread está vacío? Debe ser [] siempre.
 
 GENERA EL JSON AHORA.`;
 
@@ -291,15 +286,9 @@ SOLO JSON entre JSON_START/JSON_END. NO inventes datos.`;
       output.tweet.text = safeTrim(output.tweet.text, 270);
     }
 
-    // Validate mode
-    if (!["single", "thread2"].includes(output.mode)) {
-      output.mode = "single";
-    }
-
-    // Validate thread count (max 3 total including tweet 1)
-    if (output.mode === "thread2" && output.thread.length > 2) {
-      output.thread = output.thread.slice(0, 2);
-    }
+    // Force single mode only (no threads)
+    output.mode = "single";
+    output.thread = [];  // Always empty
 
     // Validate hashtags (1-2 max)
     if (output.topic_hashtags.length > 2) {
@@ -374,9 +363,8 @@ REGLAS CRÍTICAS
 - 100% español. Prohibido inglés.
 - IMPORTANTE: Si la fuente NO confirma explícitamente "bloqueo naval", usa CONDICIONAL: "evalúa", "considera", "según reportes", "plantea".
 - Nunca afirmar como hecho sin fuente verificable.
-- Default: mode="single" (1 tuit).
-- Solo mode="thread2" si hay 2+ actores o contexto crítico.
-- Máx 270 caracteres por tuit.
+- SIEMPRE mode="single" (1 solo tuit, máx 260 chars).
+- thread=[] vacío siempre.
 - Hashtags 1-2.
 
 ESTRUCTURA
@@ -517,13 +505,9 @@ Genera el JSON ahora.`;
       output.tweet.text = safeTrim(output.tweet.text, 270);
     }
 
-    if (!["single", "thread2"].includes(output.mode)) {
-      output.mode = "single";
-    }
-
-    if (output.mode === "thread2" && output.thread.length > 2) {
-      output.thread = output.thread.slice(0, 2);
-    }
+    // Force single mode only (no threads)
+    output.mode = "single";
+    output.thread = [];  // Always empty
 
     if (output.topic_hashtags.length > 2) {
       output.topic_hashtags = output.topic_hashtags.slice(0, 2);

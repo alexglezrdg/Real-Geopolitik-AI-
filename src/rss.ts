@@ -50,6 +50,21 @@ function getFeeds() {
   }).filter(f => !!f.url);
 }
 
+// HARD FRESHNESS FILTER: Reject articles older than this many hours
+const MAX_AGE_HOURS = 12;  // 12 hours max - stricter than before
+
+function isFreshArticle(isoDate: string | undefined): boolean {
+  if (!isoDate) return false;  // No date = reject
+  try {
+    const pubDate = new Date(isoDate).getTime();
+    const now = Date.now();
+    const ageHours = (now - pubDate) / (1000 * 60 * 60);
+    return ageHours <= MAX_AGE_HOURS && ageHours >= 0;  // Also reject future dates
+  } catch {
+    return false;
+  }
+}
+
 export async function fetchAllFeeds(): Promise<FeedItem[]> {
   const feeds = getFeeds();
   const items: FeedItem[] = [];
@@ -60,15 +75,25 @@ export async function fetchAllFeeds(): Promise<FeedItem[]> {
     console.log("\n📰 Fetching from NewsAPI (primary source)...");
     try {
       const newsApiArticles = await fetchGeopoliticsNews();
+      let freshCount = 0;
+      let oldCount = 0;
       for (const article of newsApiArticles) {
         const item = convertToFeedItem(article);
+
+        // HARD FRESHNESS CHECK - reject old articles
+        if (!isFreshArticle(item.isoDate)) {
+          oldCount++;
+          continue;
+        }
+
         const titleNorm = item.title.toLowerCase().slice(0, 60);
         if (!seenTitles.has(titleNorm)) {
           seenTitles.add(titleNorm);
           items.push(item);
+          freshCount++;
         }
       }
-      console.log(`  ✓ NewsAPI total: ${items.length} unique articles\n`);
+      console.log(`  ✓ NewsAPI: ${freshCount} fresh (<${MAX_AGE_HOURS}h), ${oldCount} rejected (old)\n`);
     } catch (err) {
       console.error(`  ✗ NewsAPI failed: ${(err as Error).message}`);
     }
@@ -81,10 +106,20 @@ export async function fetchAllFeeds(): Promise<FeedItem[]> {
     for (const f of feeds) {
       try {
         const feed = await parser.parseURL(f.url);
+        let freshCount = 0;
+        let oldCount = 0;
         for (const it of feed.items ?? []) {
           const link = (it.link || "").trim();
           const title = (it.title || "").trim();
           if (!link || !title) continue;
+
+          const isoDate = (it.isoDate || it.pubDate || undefined) as string | undefined;
+
+          // HARD FRESHNESS CHECK - reject old articles
+          if (!isFreshArticle(isoDate)) {
+            oldCount++;
+            continue;
+          }
 
           // Skip if we already have similar title from NewsAPI
           const titleNorm = title.toLowerCase().slice(0, 60);
@@ -95,11 +130,12 @@ export async function fetchAllFeeds(): Promise<FeedItem[]> {
             source: f.name,
             title,
             link,
-            isoDate: (it.isoDate || it.pubDate || undefined) as any,
+            isoDate,
             snippet: (it.contentSnippet || it.content || "").toString().slice(0, 600)
           });
+          freshCount++;
         }
-        console.log(`  ✓ ${f.name}: ${(feed.items?.length ?? 0)} items`);
+        console.log(`  ✓ ${f.name}: ${freshCount} fresh, ${oldCount} old`);
       } catch (e: any) {
         console.log(`  ✗ ${f.name}: ${e?.message ?? String(e)}`);
       }
@@ -108,5 +144,8 @@ export async function fetchAllFeeds(): Promise<FeedItem[]> {
 
   // newest first if isoDate exists
   items.sort((a, b) => (b.isoDate || "").localeCompare(a.isoDate || ""));
+
+  console.log(`📰 Total candidates: ${items.length} (all fresh <${MAX_AGE_HOURS}h)`);
+
   return items;
 }
